@@ -41,7 +41,7 @@ def plot_shorter_training_accuracies(this_dir: str, length: int):
     acc_avgs_qa_all, acc_stds_qa_all, update_interval = get_avgs_and_stds_from_csv(qa_all_filename)
     acc_avgs_qa_proportion, acc_stds_qa_proportion, update_interval = get_avgs_and_stds_from_csv(qa_proportion_filename)
 
-    list_length = length / update_interval
+    list_length = int(length / update_interval)
     acc_avgs_b_all = acc_avgs_b_all[:list_length]
     acc_avgs_b_proportion = acc_avgs_b_proportion[:list_length]
     acc_avgs_qa_all = acc_avgs_qa_all[:list_length]
