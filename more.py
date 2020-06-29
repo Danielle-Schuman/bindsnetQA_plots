@@ -30,6 +30,41 @@ def plot_another_training_accuracy(this_dir: str, kind: str):
     plot_training_accuracy(acc_averages, acc_stds, update_interval, this_dir, ("training_accuracy_" + kind))
 
 
+def plot_shorter_training_accuracies(this_dir: str, length: int):
+    b_all_filename = (this_dir + "/Accuracies BindsNET all.csv")
+    b_proportion_filename = (this_dir + "/Accuracies BindsNET proportion.csv")
+    qa_all_filename = (this_dir + "/Accuracies BindsNET_QA all.csv")
+    qa_proportion_filename = (this_dir + "/Accuracies BindsNET_QA proportion.csv")
+
+    acc_avgs_b_all, acc_stds_b_all, update_interval = get_avgs_and_stds_from_csv(b_all_filename)
+    acc_avgs_b_proportion, acc_stds_b_proportion, update_interval = get_avgs_and_stds_from_csv(b_proportion_filename)
+    acc_avgs_qa_all, acc_stds_qa_all, update_interval = get_avgs_and_stds_from_csv(qa_all_filename)
+    acc_avgs_qa_proportion, acc_stds_qa_proportion, update_interval = get_avgs_and_stds_from_csv(qa_proportion_filename)
+
+    list_length = length / update_interval
+    acc_avgs_b_all = acc_avgs_b_all[:list_length]
+    acc_avgs_b_proportion = acc_avgs_b_proportion[:list_length]
+    acc_avgs_qa_all = acc_avgs_qa_all[:list_length]
+    acc_avgs_qa_proportion = acc_avgs_qa_proportion[:list_length]
+    acc_stds_b_all = acc_stds_b_all[:list_length]
+    acc_stds_b_proportion = acc_stds_b_proportion[:list_length]
+    acc_stds_qa_all = acc_stds_qa_all[:list_length]
+    acc_stds_qa_proportion = acc_stds_qa_proportion[:list_length]
+
+    acc_avgs_dict = {"b_all": acc_avgs_b_all, "b_proportion": acc_avgs_b_proportion, "qa_all": acc_avgs_qa_all, "qa_proportion": acc_avgs_qa_proportion}
+    acc_stds_dict = {"b_all": acc_stds_b_all, "b_proportion": acc_stds_b_proportion, "qa_all": acc_stds_qa_all, "qa_proportion": acc_stds_qa_proportion}
+    acc_avgs_all_dict = {"b_all": acc_avgs_b_all, "qa_all": acc_avgs_qa_all}
+    acc_stds_all_dict = {"b_all": acc_stds_b_all, "qa_all": acc_stds_qa_all}
+    acc_avgs_proportion_dict = {"b_proportion": acc_avgs_b_proportion, "qa_proportion": acc_avgs_qa_proportion}
+    acc_stds_proportion_dict = {"b_proportion": acc_stds_b_proportion, "qa_proportion": acc_stds_qa_proportion}
+
+    plot_training_accuracy(acc_avgs_dict, acc_stds_dict, update_interval, this_dir, ("training_accuracy_" + str(length)))
+    plot_training_accuracy(acc_avgs_all_dict, acc_stds_all_dict, update_interval, this_dir,
+                           ("training_accuracy_all_" + str(length)))
+    plot_training_accuracy(acc_avgs_proportion_dict, acc_stds_proportion_dict, update_interval, this_dir,
+                           ("training_accuracy_proportion_" + str(length)))
+
+
 # figures that should exist (currently):
 # "training_accuracy.png", "training_accuracy_all.png", "training_accuracy_proportion.png"
 rootdir = "/Users/Daantje/Sourcecodes/bindsnet_qa_plots/plots"
@@ -42,4 +77,6 @@ for this_dir, subdirs, files in os.walk(rootdir):
             plot_another_training_accuracy(this_dir, "all")
         if "training_accuracy_proportion.png" not in files:
             plot_another_training_accuracy(this_dir, "proportion")
+        if "--n_train 100" not in this_dir:
+            plot_shorter_training_accuracies(this_dir, 100)
 print("Done.")

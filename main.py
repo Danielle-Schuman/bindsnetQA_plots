@@ -187,7 +187,6 @@ if __name__ == "__main__":
     acc_averages_proportion = {"b_proportion": acc_averages_b_proportion, "qa_proportion": acc_averages_qa_proportion}
     acc_stds_proportion = {"b_proportion": acc_stds_b_proportion, "qa_proportion": acc_stds_qa_proportion}
 
-
     plot_training_accuracy(acc_averages, acc_stds, update_interval, directory, "training_accuracy")
     plot_training_accuracy(acc_averages_all, acc_stds_all, update_interval, directory, "training_accuracy_all")
     plot_training_accuracy(acc_averages_proportion, acc_stds_proportion, update_interval, directory, "training_accuracy_proportion")
