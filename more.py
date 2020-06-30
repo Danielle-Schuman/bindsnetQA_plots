@@ -2,6 +2,7 @@
 from main import plot_training_accuracy
 import os
 import csv
+from typing import Optional
 
 
 def get_avgs_and_stds_from_csv(filename: str):  # -> List[float], List[float], int
@@ -30,7 +31,7 @@ def plot_another_training_accuracy(this_dir: str, kind: str):
     plot_training_accuracy(acc_averages, acc_stds, update_interval, this_dir, ("training_accuracy_" + kind))
 
 
-def plot_shorter_training_accuracies(this_dir: str, length: int):
+def plot_new_training_accuracies(this_dir: str, length: Optional[int] = None):
     b_all_filename = (this_dir + "/Accuracies BindsNET all.csv")
     b_proportion_filename = (this_dir + "/Accuracies BindsNET proportion.csv")
     qa_all_filename = (this_dir + "/Accuracies BindsNET_QA all.csv")
@@ -41,15 +42,19 @@ def plot_shorter_training_accuracies(this_dir: str, length: int):
     acc_avgs_qa_all, acc_stds_qa_all, update_interval = get_avgs_and_stds_from_csv(qa_all_filename)
     acc_avgs_qa_proportion, acc_stds_qa_proportion, update_interval = get_avgs_and_stds_from_csv(qa_proportion_filename)
 
-    list_length = int(length / update_interval)
-    acc_avgs_b_all = acc_avgs_b_all[:list_length]
-    acc_avgs_b_proportion = acc_avgs_b_proportion[:list_length]
-    acc_avgs_qa_all = acc_avgs_qa_all[:list_length]
-    acc_avgs_qa_proportion = acc_avgs_qa_proportion[:list_length]
-    acc_stds_b_all = acc_stds_b_all[:list_length]
-    acc_stds_b_proportion = acc_stds_b_proportion[:list_length]
-    acc_stds_qa_all = acc_stds_qa_all[:list_length]
-    acc_stds_qa_proportion = acc_stds_qa_proportion[:list_length]
+    name_suffix = ""
+    if length is not None:
+        list_length = int(length / update_interval)
+        acc_avgs_b_all = acc_avgs_b_all[:list_length]
+        acc_avgs_b_proportion = acc_avgs_b_proportion[:list_length]
+        acc_avgs_qa_all = acc_avgs_qa_all[:list_length]
+        acc_avgs_qa_proportion = acc_avgs_qa_proportion[:list_length]
+        acc_stds_b_all = acc_stds_b_all[:list_length]
+        acc_stds_b_proportion = acc_stds_b_proportion[:list_length]
+        acc_stds_qa_all = acc_stds_qa_all[:list_length]
+        acc_stds_qa_proportion = acc_stds_qa_proportion[:list_length]
+        name_suffix = "_" + str(length)
+
 
     acc_avgs_dict = {"b_all": acc_avgs_b_all, "b_proportion": acc_avgs_b_proportion, "qa_all": acc_avgs_qa_all, "qa_proportion": acc_avgs_qa_proportion}
     acc_stds_dict = {"b_all": acc_stds_b_all, "b_proportion": acc_stds_b_proportion, "qa_all": acc_stds_qa_all, "qa_proportion": acc_stds_qa_proportion}
@@ -58,11 +63,11 @@ def plot_shorter_training_accuracies(this_dir: str, length: int):
     acc_avgs_proportion_dict = {"b_proportion": acc_avgs_b_proportion, "qa_proportion": acc_avgs_qa_proportion}
     acc_stds_proportion_dict = {"b_proportion": acc_stds_b_proportion, "qa_proportion": acc_stds_qa_proportion}
 
-    plot_training_accuracy(acc_avgs_dict, acc_stds_dict, update_interval, this_dir, ("training_accuracy_" + str(length)))
+    plot_training_accuracy(acc_avgs_dict, acc_stds_dict, update_interval, this_dir, ("training_accuracy" + name_suffix))
     plot_training_accuracy(acc_avgs_all_dict, acc_stds_all_dict, update_interval, this_dir,
-                           ("training_accuracy_all_" + str(length)))
+                           ("training_accuracy_all" + name_suffix))
     plot_training_accuracy(acc_avgs_proportion_dict, acc_stds_proportion_dict, update_interval, this_dir,
-                           ("training_accuracy_proportion_" + str(length)))
+                           ("training_accuracy_proportion" + name_suffix))
 
 
 # figures that should exist (currently):
@@ -73,10 +78,13 @@ for this_dir, subdirs, files in os.walk(rootdir):
     if this_dir == rootdir:
         pass
     else:
+        if "training_accuracy.png" not in files:
+            plot_new_training_accuracies(this_dir)
         if "training_accuracy_all.png" not in files:
             plot_another_training_accuracy(this_dir, "all")
         if "training_accuracy_proportion.png" not in files:
             plot_another_training_accuracy(this_dir, "proportion")
         if "--n_train 100" not in this_dir:
-            plot_shorter_training_accuracies(this_dir, 100)
+            if "training_accuracy_100.png" not in files:
+                plot_new_training_accuracies(this_dir, 100)
 print("Done.")
