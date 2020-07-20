@@ -265,7 +265,7 @@ class Network(torch.nn.Module):
                     # increase punishment by the maximum weight * number of incoming connections
                     penalty += (c_v.wmax * c_v.source.n)
                 # max_bias = torch.max(c_v.b)
-                # if max_bias > 0: #never the case: is always bias = 0 in our example
+                # if max_bias > 0: # never the case: is always bias = 0 in our example
                      # if that makes a positive impact for QA, add bias
                      # penalty += max_bias
         # punishment is now bigger than the cumulative value of all "new" inputs to the layer in this timestep
