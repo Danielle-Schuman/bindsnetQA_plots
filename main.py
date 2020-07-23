@@ -9,7 +9,7 @@ from examples.mnist import supervised_mnist
 from examples_qa.mnist import supervised_mnist as supervised_mnist_qa
 
 
-def write_to_csv(directory: str, heading: str, arguments: list, column_names: Optional[list] = None, content: List[list] = None, averages: Optional[list] = None, std: Optional[list] = None):
+def write_to_csv(directory: str, heading: str, arguments: list, column_names: Optional[list] = None, content: Optional[List[list]] = None, averages: Optional[list] = None, std: Optional[list] = None):
     with open((directory + '/' + heading + '.csv'), 'a+') as csvfile:
         filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         filewriter.writerow([heading])
@@ -23,14 +23,15 @@ def write_to_csv(directory: str, heading: str, arguments: list, column_names: Op
             filewriter.writerow(['Column names:'])
             filewriter.writerow(column_names)
             filewriter.writerow([])
-        filewriter.writerows(content)
-        filewriter.writerow([])
-        if averages is None:
-            averages = np.mean(content, axis=0)
+        if content is not None:
+            filewriter.writerows(content)
+            filewriter.writerow([])
+            if averages is None:
+                averages = np.mean(content, axis=0)
+            if std is None:
+                std = np.std(content, axis=0)
         filewriter.writerow(['Averages:'])
         filewriter.writerow(averages)
-        if std is None:
-            std = np.std(content, axis=0)
         filewriter.writerow(['Standard deviations:'])
         filewriter.writerow(std)
         filewriter.writerow([])
@@ -166,14 +167,27 @@ if __name__ == "__main__":
     acc_averages_b_proportion = np.mean(accuracies_b_proportion, axis=0)
     acc_averages_qa_all = np.mean(accuracies_qa_all, axis=0)
     acc_averages_qa_proportion = np.mean(accuracies_qa_proportion, axis=0)
+    acc_averages_diff_all = np.subtract(acc_averages_qa_all, acc_averages_b_all)
+    acc_averages_diff_proportion = np.subtract(acc_averages_qa_proportion, acc_averages_b_proportion)
 
     acc_stds_b_all = np.std(accuracies_b_all, axis=0)
     acc_stds_b_proportion = np.std(accuracies_b_proportion, axis=0)
     acc_stds_qa_all = np.std(accuracies_qa_all, axis=0)
     acc_stds_qa_proportion = np.std(accuracies_qa_proportion, axis=0)
+    acc_stds_diff_all = np.subtract(acc_stds_qa_all, acc_stds_b_all)
+    acc_stds_diff_proportion = np.subtract(acc_stds_qa_proportion, acc_stds_b_proportion)
 
     qb_solv_averages = np.mean(qb_solv_energies_for_runs, axis=0)
     qb_solv_stds = np.std(qb_solv_energies_for_runs, axis=0)
+
+    # append average difference to the array
+    acc_averages_diff_all = np.append(acc_averages_diff_all, np.array(np.mean(acc_averages_diff_all)))
+    acc_averages_diff_proportion = np.append(acc_averages_diff_proportion, np.array(np.mean(acc_averages_diff_proportion)))
+    acc_stds_diff_all = np.append(acc_stds_diff_all, np.array(np.mean(acc_stds_diff_all)))
+    acc_stds_diff_proportion = np.append(acc_stds_diff_proportion, np.mean(acc_stds_diff_proportion))
+    # should all have the same length -> does not matter, which one we use
+    diff_column_names = [i for i in range(len(acc_averages_diff_all) -1)]
+    diff_column_names.append("Average")
 
     write_to_csv(directory, "Accuracies BindsNET all", arguments_list, [i for i in range(len(accuracies_b_all[0]))], accuracies_b_all, acc_averages_b_all, acc_stds_b_all)
     write_to_csv(directory, "Accuracies BindsNET proportion", arguments_list, [i for i in range(len(accuracies_b_proportion[0]))], accuracies_b_proportion, acc_averages_b_proportion, acc_stds_b_proportion)
@@ -181,6 +195,8 @@ if __name__ == "__main__":
     write_to_csv(directory, "Accuracies BindsNET_QA proportion", arguments_list, [i for i in range(len(accuracies_qa_proportion[0]))], accuracies_qa_proportion, acc_averages_qa_proportion, acc_stds_qa_proportion)
     write_to_csv(directory, "Wall clock time taken", arguments_list, ["BindsNet (in sec)", "BindsNET_QA (in sec)"], wallclocktime)
     write_to_csv(directory, "Qb_solv_energies", arguments_list, [i for i in range(int(time / dt))], qb_solv_energies_for_runs_layout, qb_solv_averages, qb_solv_stds)
+    write_to_csv(directory, "Differences all-accuracies", arguments_list, diff_column_names, None, acc_averages_diff_all, acc_stds_diff_all)
+    write_to_csv(directory, "Differences proportion-accuracies", arguments_list, diff_column_names, None, acc_averages_diff_proportion, acc_stds_diff_proportion)
 
     acc_averages = {"b_all": acc_averages_b_all, "b_proportion": acc_averages_b_proportion, "qa_all": acc_averages_qa_all, "qa_proportion": acc_averages_qa_proportion}
     acc_stds = {"b_all": acc_stds_b_all, "b_proportion": acc_stds_b_proportion, "qa_all": acc_stds_qa_all, "qa_proportion": acc_stds_qa_proportion}

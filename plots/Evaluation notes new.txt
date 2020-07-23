@@ -1,0 +1,21 @@
+Evaluation notes: (based on all accuracy)
+- on average (over everything), avgs and stds of QA are almost the same as B (all accuracy of
+QA over all on average 0.119% lower than B, std of all accuracy of QA on average 0.1% lower than B)
+- proportion accuracies same "direction", just sometimes larger values -> varies a little more
+- more neurons do not seem to make difference for difference between B and QA (30 neurons
+worse than 20, but 40 neurons better again)
+- QA seems a little better in first 50 iterations, than worse in the next 100, and then a
+little better again -> probably hazard mostly, apart, of course from both converging at
+the end -> getting closer
+- With more neurons, QA seems to have less std than B on average, however std-difference
+ also varies more so maybe just hazard?
+ 
+- comparing time 10 and 20, time does not really seem to make any difference for difference
+between QA and B (and why should it? <-> n_neurons in qbsolv etc.), but not enough data on 
+"high" times
+ 
+- interesting: 
+	- generally more runs with more neurons, also with different other parameters
+	- more on exc / inh: seems that QA works a little better with less lateral inhibition?
+	- more runs with more time?
+	(- maybe more num_repeats to prove (!) that this does not make a difference?)
