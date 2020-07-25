@@ -30,6 +30,31 @@ def get_arguments_list_from_csv(filename: str):
         arguments_list = rows[2][1:]
     return arguments_list
 
+def get_avg_wall_clock_times_from_csv(filename: str):
+    with open(filename, 'r') as csvfile:
+        file = csv.reader(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        rows = [row for row in file]
+        end = len(rows)
+        # Averages are always the 6th row from below, in a file created by write_to_csv from main
+        b_time_avg = float(rows[end - 6][0])
+        qa_time_avg = float(rows[end - 6][1])
+    return b_time_avg, qa_time_avg
+
+
+def get_wall_clock_times_from_csv(filename: str):
+    with open(filename, 'r') as csvfile:
+        file = csv.reader(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        rows = [row for row in file]
+        # Wallclocktimes always start at 9th row from top, in a file created by write_to_csv from main
+        i = 8
+        b_times = []
+        qa_times = []
+        while rows[i]:  # while row is not empty
+            b_times.append(float(rows[i][0]))
+            qa_times.append(float(rows[i][1]))
+            i = i + 1
+    return b_times, qa_times
+
 
 def plot_another_training_accuracy(this_dir: str, kind: str):
     b_kind = "b_" + kind
@@ -127,11 +152,12 @@ def write_differences_to_csv(directory: str, heading: str, averages: list, std: 
         filewriter.writerow(['Standard Deviations of Difference Averages:'])
         filewriter.writerow(averages_stds)
         filewriter.writerow([])
-        filewriter.writerow(['Difference Standard deviations:'])
-        filewriter.writerow(std)
-        filewriter.writerow(['Standard Deviations of Difference Standard deviations:'])
-        filewriter.writerow(std_stds)
-        filewriter.writerow([])
+        if std is not None:
+            filewriter.writerow(['Difference Standard deviations:'])
+            filewriter.writerow(std)
+            filewriter.writerow(['Standard Deviations of Difference Standard deviations:'])
+            filewriter.writerow(std_stds)
+            filewriter.writerow([])
 
 
 def calculate_averages_and_stds(data: List[list]):
@@ -208,6 +234,46 @@ def average_differences(this_dir:str, subdirs: list, over: int, in_name: str, no
     write_differences_to_csv(this_dir, heading_all, averages_all, stds_all, averages_all_stds, stds_all_stds, column_names)
 
 
+def average_wallclocktime_difference(this_dir: str, subdirs: List[str], in_name: str, not_in_name: str):
+    factors = []
+    for subdir in subdirs:
+        directory = this_dir + '/' + subdir
+        filename = directory + '/' + 'Wall clock time taken.csv'
+        b_time_avg, qa_time_avg = get_avg_wall_clock_times_from_csv(filename)
+        factors.append(qa_time_avg / b_time_avg)
+    avg_factor = [np.mean(factors)]
+    std_factor = [np.std(factors)]
+
+    heading = "Average Factor QA is slower"
+    if in_name is not None:
+        heading = heading + " with " + in_name
+    if not_in_name is not None:
+        heading = heading + " without " + not_in_name
+
+    write_differences_to_csv(this_dir, heading, avg_factor, None, std_factor, None)
+
+
+def replace_avg_in_csv(filename: str, new_row_content: list):
+    with open(filename, 'r') as csvfile:
+        file = csv.reader(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        rows = [row for row in file]
+        end = len(rows)
+        # Averages are always the 6th row from below, in a file created by write_to_csv from main
+        rows[end - 6] = new_row_content
+
+    with open(filename, 'w+') as csvfile:
+        filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        filewriter.writerows(rows)
+
+
+def recalculate_average_wallclocktime(this_dir: str):
+    filename = this_dir + '/' + 'Wall clock time taken.csv'
+    b_times, qa_times = get_wall_clock_times_from_csv(filename)
+    b_median = np.median(b_times)
+    qa_median = np.median(qa_times)
+    replace_avg_in_csv(filename, [b_median, qa_median])
+
+
 # figures that should exist (currently):
 # "training_accuracy.png", "training_accuracy_all.png", "training_accuracy_proportion.png"
 rootdir = "/Users/Daantje/Sourcecodes/bindsnet_qa_plots/plots"
@@ -231,20 +297,22 @@ for this_dir, subdirs, files in os.walk(rootdir):
     if this_dir == rootdir:
         subdirs_to_use = []
         for name in subdirs:
-            use_this = True
-            if in_name is not None:
-                for option in in_name_list:
-                    if not option in name:
-                        use_this = False
-            if not_in_name is not None:
-                for option in not_in_name_list:
-                    if option in name:
-                        use_this = False
-            if use_this:
-                subdirs_to_use.append(name)
+            if os.listdir(this_dir + '/' + name):  # i.e. directory is not still empty
+                use_this = True
+                if in_name is not None:
+                    for option in in_name_list:
+                        if not option in name:
+                            use_this = False
+                if not_in_name is not None:
+                    for option in not_in_name_list:
+                        if option in name:
+                            use_this = False
+                if use_this:
+                    subdirs_to_use.append(name)
         average_differences(this_dir, subdirs_to_use, over, in_name, not_in_name)
+        average_wallclocktime_difference(this_dir, subdirs_to_use, in_name, not_in_name)
 
-    else:
+    elif files:  # if it's not the root directory and it's not empty
         if "training_accuracy.png" not in files:
             plot_new_training_accuracies(this_dir)
         if "training_accuracy_all.png" not in files:
@@ -256,4 +324,5 @@ for this_dir, subdirs, files in os.walk(rootdir):
         if "--n_train 100" not in this_dir:
             if "training_accuracy_100.png" not in files:
                 plot_new_training_accuracies(this_dir, 100)
+        # recalculate_average_wallclocktime(this_dir)
 print("Done.")
