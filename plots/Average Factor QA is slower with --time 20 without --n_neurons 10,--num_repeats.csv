@@ -1,0 +1,7 @@
+|Average Factor QA is slower with --time 20 without --n_neurons 10,--num_repeats|
+
+Difference Averages:
+715.7712408519278
+Standard Deviations of Difference Averages:
+211.33676467041934
+

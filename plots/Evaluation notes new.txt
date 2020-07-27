@@ -19,5 +19,5 @@ between QA and B (and why should it? <-> n_neurons in qbsolv etc.), but not enou
 	- more on exc / inh: seems that QA works a little better with less lateral inhibition?
 	- more runs with more time?
 	- more runs with larger n_train (200, maybe even 250 or so) -> especially for plots that
-	go in BA (easy plot, hard plot)
+	go in BA (easy plot, hard plot) → see whether it both converges equally well
 	(- maybe more num_repeats to prove (!) that this does not make a difference?)
