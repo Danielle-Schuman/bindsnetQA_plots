@@ -1,0 +1,7 @@
+|Average Factor QA is slower without --n_nerons 10,--num_repeats ,--exc ,--inh |
+
+Difference Averages:
+581.2131253754377
+Standard Deviations of Difference Averages:
+208.27024484408108
+

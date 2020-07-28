@@ -112,6 +112,7 @@ def supervised_mnist(seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, 
     voltage_fig = None
     qb_solv_energies = []
     qb_solv_energies_now = None
+    filled = []
 
     pbar = tqdm(enumerate(dataloader))
     for (i, datum) in pbar:
@@ -160,8 +161,9 @@ def supervised_mnist(seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, 
         choice = np.random.choice(int(n_neurons / 10), size=n_clamp, replace=False)
         clamp = {"Ae": per_class * label.long() + torch.Tensor(choice).long()}
         inputs = {"X": image.view(time, 1, 1, 28, 28)}
-        qb_solv_energies_now = network.run(inputs=inputs, time=time, clamp=clamp, num_repeats=num_repeats)
+        qb_solv_energies_now, filled_now = network.run(inputs=inputs, time=time, clamp=clamp, num_repeats=num_repeats)
         qb_solv_energies.append(qb_solv_energies_now)
+        filled.extend(filled_now)
 
         # Get voltage recording.
         exc_voltages = exc_voltage_monitor.get("v")
@@ -213,4 +215,4 @@ def supervised_mnist(seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, 
     elapsed = end - start
     # print("Wall clock time taken: %fs." % elapsed)
 
-    return accuracy, elapsed, qb_solv_energies
+    return accuracy, elapsed, qb_solv_energies, filled

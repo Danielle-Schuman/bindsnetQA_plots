@@ -5,7 +5,8 @@ import os
 import csv
 import numpy as np
 import argparse
-from typing import Optional, List
+from typing import List, Optional, Tuple
+import matplotlib.pyplot as plt
 
 
 def get_avgs_and_stds_from_csv(filename: str):  # -> List[float], List[float], int
@@ -29,6 +30,7 @@ def get_arguments_list_from_csv(filename: str):
         # arguments_list is always in the 3rd row from the top, all but the fist, in a file created by write_to_csv from main
         arguments_list = rows[2][1:]
     return arguments_list
+
 
 def get_avg_wall_clock_times_from_csv(filename: str):
     with open(filename, 'r') as csvfile:
@@ -54,6 +56,51 @@ def get_wall_clock_times_from_csv(filename: str):
             qa_times.append(float(rows[i][1]))
             i = i + 1
     return b_times, qa_times
+
+
+def plot_average_differences(
+    diff_avgs: List[float],
+    stds: List[float],
+    update_interval: int,
+    directory: str,
+    name: str,
+    figsize: Tuple[float, float] = (10.5, 6)
+) -> None:
+    # language=rst
+    """
+    Plot average differences between accuracies of BindsNET and BindsNET_QA code.
+
+    :param diff_avgs: list of average differences between accuracies
+    :param stds: list of standard deviation of differences between accuracies
+    :param update_interval: Number of examples per accuracy estimate.
+    :param directory: Directory where the differences plot will be saved.
+    :param name: name for the figure
+    :param figsize: Horizontal, vertical figure size in inches.
+    """
+    fig, ax = plt.subplots(figsize=figsize)
+
+    list_length = len(diff_avgs)
+    x = np.array([0.0] + [(i * update_interval) + update_interval for i in range(list_length)])
+    y = np.array([0.0] + [d for d in diff_avgs])
+    std = np.array([0.0] + [s for s in stds])
+    c = '#9467bd'
+    ax.plot(x, y, marker='.', color=c)
+    ax.fill_between(x, y - std, y + std, color=c, alpha=0.2)
+
+    ax.set_ylim([-12, 12])
+    end = list_length * update_interval
+    ax.set_xlim([0, end])
+    ax.set_title("Difference between accuracy of QA-like code and BindsNET code")
+    ax.set_xlabel("No. of examples")
+    ax.set_ylabel("Average of (qa_all - b_all) in %")
+    # to have readable number on x-axis, there can be at most 20 ticks; ticks should be multiples of update_interval
+    xticks = int(list_length / 20) * update_interval
+    ax.set_xticks(range(0, (end + update_interval), xticks))
+    ax.set_yticks(range(-11, 12, 1))
+    ax.axhline(0, color='k')
+
+    file = directory + '/' + name
+    fig.savefig(file)
 
 
 def plot_another_training_accuracy(this_dir: str, kind: str):
@@ -160,6 +207,28 @@ def write_differences_to_csv(directory: str, heading: str, averages: list, std: 
             filewriter.writerow([])
 
 
+def write_filled_to_csv(directory: str, heading: str, averages: list, std: list, averages_stds: list, std_stds: list, column_names: Optional[list] = None):
+    with open((directory + '/' + heading + '.csv'), 'w+') as csvfile:
+        filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        filewriter.writerow([heading])
+        filewriter.writerow([])
+        if column_names is not None:
+            filewriter.writerow(['Column names:'])
+            filewriter.writerow(column_names)
+            filewriter.writerow([])
+        filewriter.writerow(['Averages:'])
+        filewriter.writerow(averages)
+        filewriter.writerow(['Standard Deviations of Averages:'])
+        filewriter.writerow(averages_stds)
+        filewriter.writerow([])
+        if std is not None:
+            filewriter.writerow(['Standard deviations:'])
+            filewriter.writerow(std)
+            filewriter.writerow(['Standard Deviations of Standard deviations:'])
+            filewriter.writerow(std_stds)
+            filewriter.writerow([])
+
+
 def calculate_averages_and_stds(data: List[list]):
     max_length = 0
     averages = []
@@ -178,6 +247,7 @@ def calculate_averages_and_stds(data: List[list]):
         result_avg.append(np.mean(array_i))
         result_std.append(np.std(array_i))
     result_avg.append(np.mean(averages))
+    print("Minimum average difference:" + str(np.amin(averages)))
     result_std.append(np.std(averages))
     return result_avg, result_std
 
@@ -232,6 +302,8 @@ def average_differences(this_dir:str, subdirs: list, over: int, in_name: str, no
 
     write_differences_to_csv(this_dir, heading_proportion, averages_proportion, stds_proportion, averages_proportion_stds, stds_proportion_stds, column_names)
     write_differences_to_csv(this_dir, heading_all, averages_all, stds_all, averages_all_stds, stds_all_stds, column_names)
+    if over is None and in_name is None and not_in_name == "--n_neurons 10,--num_repeats":
+        plot_average_differences(averages_all[:-1], averages_all_stds[:-1], update_interval, this_dir, heading_all)
 
 
 def average_wallclocktime_difference(this_dir: str, subdirs: List[str], in_name: str, not_in_name: str):
@@ -274,6 +346,23 @@ def recalculate_average_wallclocktime(this_dir: str):
     replace_avg_in_csv(filename, [b_median, qa_median])
 
 
+def average_filled (this_dir: str, subdirs: list[str]):
+    means = []
+    stds = []
+    for subdir in subdirs:
+        filename = subdir + '/' + "Filled Percentage of QUBO.csv"
+        os.path.isfile(filename)
+        mean, std, update_interval = get_avgs_and_stds_from_csv(filename)
+        means.extend(mean)
+        stds.extend(std)
+    mean_avg = np.mean(means)
+    mean_std = np.std(means)
+    std_avg = np.mean(stds)
+    std_std = np.std(stds)
+    heading = "Average Percentage QUBO is filled"
+    write_filled_to_csv(this_dir, heading, [mean_avg], [std_avg], [mean_std], [std_std])
+
+
 # figures that should exist (currently):
 # "training_accuracy.png", "training_accuracy_all.png", "training_accuracy_proportion.png"
 rootdir = "/Users/Daantje/Sourcecodes/bindsnet_qa_plots/plots"
@@ -311,6 +400,8 @@ for this_dir, subdirs, files in os.walk(rootdir):
                     subdirs_to_use.append(name)
         average_differences(this_dir, subdirs_to_use, over, in_name, not_in_name)
         average_wallclocktime_difference(this_dir, subdirs_to_use, in_name, not_in_name)
+        if in_name is None and not_in_name is "--n_neurons 10,--num_repeats" and over is None:
+            average_filled(this_dir, subdirs_to_use)
 
     elif files:  # if it's not the root directory and it's not empty
         if "training_accuracy.png" not in files:

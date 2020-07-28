@@ -141,6 +141,9 @@ if __name__ == "__main__":
     gpu = args.gpu
     arguments_list = [runs, seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, dt, intensity, update_interval, train, plot, num_repeats, gpu]
 
+    # determine total number of neurons in network for evalutation, which percentage of the qubo is filled
+    total_n_neurons = 784 + 2 * n_neurons
+
     accuracies_b_all = []
     accuracies_b_proportion = []
     accuracies_qa_all = []
@@ -148,6 +151,7 @@ if __name__ == "__main__":
     wallclocktime = []
     qb_solv_energies_for_runs = []
     qb_solv_energies_for_runs_layout = []
+    filled_for_runs = []
 
     for run in range(runs):
         print("BindsNET: Run %d" % run)
@@ -155,13 +159,14 @@ if __name__ == "__main__":
         accuracies_b_all.append(accuracies_b["all"])
         accuracies_b_proportion.append(accuracies_b["proportion"])
         print("BindsNET_QA: Run %d" % run)
-        accuracies_qa, wallclocktime_qa, qb_solv_energies = supervised_mnist_qa.supervised_mnist(seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, dt, intensity, num_repeats, update_interval, train, plot, other_plots_directory, gpu)
+        accuracies_qa, wallclocktime_qa, qb_solv_energies, filled = supervised_mnist_qa.supervised_mnist(seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, dt, intensity, num_repeats, update_interval, train, plot, other_plots_directory, gpu)
         accuracies_qa_all.append(accuracies_qa["all"])
         accuracies_qa_proportion.append(accuracies_qa["proportion"])
         wallclocktime.append([wallclocktime_b, wallclocktime_qa])
         qb_solv_energies_for_runs.extend(qb_solv_energies)
         qb_solv_energies_for_runs_layout.append('')
         qb_solv_energies_for_runs_layout.extend(qb_solv_energies)
+        filled_for_runs.extend(filled)
 
     acc_averages_b_all = np.mean(accuracies_b_all, axis=0)
     acc_averages_b_proportion = np.mean(accuracies_b_proportion, axis=0)
@@ -180,6 +185,11 @@ if __name__ == "__main__":
     qb_solv_averages = np.mean(qb_solv_energies_for_runs, axis=0)
     qb_solv_stds = np.std(qb_solv_energies_for_runs, axis=0)
 
+    filled_array = np.array(filled_for_runs)
+    filled_percentage = (filled_array / total_n_neurons) * 100
+    mean_filled = np.mean(filled_percentage)
+    std_filled = np.std(filled_percentage)
+
     # append average difference to the array
     acc_averages_diff_all = np.append(acc_averages_diff_all, np.array(np.mean(acc_averages_diff_all)))
     acc_averages_diff_proportion = np.append(acc_averages_diff_proportion, np.array(np.mean(acc_averages_diff_proportion)))
@@ -197,6 +207,7 @@ if __name__ == "__main__":
     write_to_csv(directory, "Qb_solv_energies", arguments_list, [i for i in range(int(time / dt))], qb_solv_energies_for_runs_layout, qb_solv_averages, qb_solv_stds)
     write_to_csv(directory, "Differences all-accuracies", arguments_list, diff_column_names, None, acc_averages_diff_all, acc_stds_diff_all)
     write_to_csv(directory, "Differences proportion-accuracies", arguments_list, diff_column_names, None, acc_averages_diff_proportion, acc_stds_diff_proportion)
+    write_to_csv(directory, "Filled Percentage of QUBO", arguments_list, None, None, mean_filled, std_filled)
 
     acc_averages = {"b_all": acc_averages_b_all, "b_proportion": acc_averages_b_proportion, "qa_all": acc_averages_qa_all, "qa_proportion": acc_averages_qa_proportion}
     acc_stds = {"b_all": acc_stds_b_all, "b_proportion": acc_stds_b_proportion, "qa_all": acc_stds_qa_all, "qa_proportion": acc_stds_qa_proportion}

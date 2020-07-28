@@ -430,6 +430,9 @@ class Network(torch.nn.Module):
         # print("\n Wall clock time qbsolv: %fs" % elapsed)
         # print("\n Energy of qbsolv-solution: %f" % solution.first.energy) -> return instead
 
+        #evaluate how much of the qubo is filled (i.e. not zero)
+        filled = len(qubo) - list(qubo.values()).count(0)
+
         for l in self.layers:
             l_v = self.layers[l]
             # write spikes from (first) solution by filtering out 1s from neurons in refractory period
@@ -464,7 +467,7 @@ class Network(torch.nn.Module):
                     #l_v.x *= l_v.trace_decay
                     # Since l_v.traces_additive is always false
                     #l_v.x.masked_fill_(l_v.s != 0, 1)
-        return solution.first.energy
+        return solution.first.energy, filled
     # end of forward_qa
 
 
@@ -569,6 +572,7 @@ class Network(torch.nn.Module):
         # Effective number of timesteps.
         timesteps = int(time / self.dt)
         qb_solv_energies = []
+        filled = []
 
         # calculate possible Quantum Annealing penalties once
         penalties_and_rewards = {}
@@ -590,8 +594,9 @@ class Network(torch.nn.Module):
 
             # forward-step with quantum annealing
             # start = clock.time()
-            qb_solv_energy = self.forward_qa(penalties_and_rewards, num_repeats=num_repeats)
+            qb_solv_energy, filled_one = self.forward_qa(penalties_and_rewards, num_repeats=num_repeats)
             qb_solv_energies.append(qb_solv_energy)
+            filled.append(filled_one)
             # end = clock.time()
             # elapsed = end - start
             # print("\n Wall clock time forward_qa(): %fs" % elapsed)
@@ -636,7 +641,7 @@ class Network(torch.nn.Module):
         for c in self.connections:
             self.connections[c].normalize()
 
-        return qb_solv_energies
+        return qb_solv_energies, filled
 
     def reset_state_variables(self) -> None:
         # language=rst
