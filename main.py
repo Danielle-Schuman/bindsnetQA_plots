@@ -186,7 +186,7 @@ if __name__ == "__main__":
     qb_solv_stds = np.std(qb_solv_energies_for_runs, axis=0)
 
     filled_array = np.array(filled_for_runs)
-    filled_percentage = (filled_array / total_n_neurons) * 100
+    filled_percentage = (filled_array / total_n_neurons ** 2) * 100
     mean_filled = np.mean(filled_percentage)
     std_filled = np.std(filled_percentage)
 
