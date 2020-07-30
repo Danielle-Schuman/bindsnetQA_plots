@@ -346,15 +346,15 @@ def recalculate_average_wallclocktime(this_dir: str):
     replace_avg_in_csv(filename, [b_median, qa_median])
 
 
-def average_filled (this_dir: str, subdirs: list[str]):
+def average_filled (this_dir: str, subdirs: List[str]):
     means = []
     stds = []
     for subdir in subdirs:
-        filename = subdir + '/' + "Filled Percentage of QUBO.csv"
-        os.path.isfile(filename)
-        mean, std, update_interval = get_avgs_and_stds_from_csv(filename)
-        means.extend(mean)
-        stds.extend(std)
+        filename = this_dir + '/' + subdir + '/' + "Filled Percentage of QUBO.csv"
+        if os.path.isfile(filename):
+            mean, std, update_interval = get_avgs_and_stds_from_csv(filename)
+            means.extend(mean)
+            stds.extend(std)
     mean_avg = np.mean(means)
     mean_std = np.std(means)
     std_avg = np.mean(stds)
@@ -400,7 +400,7 @@ for this_dir, subdirs, files in os.walk(rootdir):
                     subdirs_to_use.append(name)
         average_differences(this_dir, subdirs_to_use, over, in_name, not_in_name)
         average_wallclocktime_difference(this_dir, subdirs_to_use, in_name, not_in_name)
-        if in_name is None and not_in_name is "--n_neurons 10,--num_repeats" and over is None:
+        if in_name is None and not_in_name == "--n_neurons 10,--num_repeats" and over is None:
             average_filled(this_dir, subdirs_to_use)
 
     elif files:  # if it's not the root directory and it's not empty

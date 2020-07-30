@@ -186,7 +186,7 @@ if __name__ == "__main__":
     qb_solv_stds = np.std(qb_solv_energies_for_runs, axis=0)
 
     filled_array = np.array(filled_for_runs)
-    filled_percentage = (filled_array / total_n_neurons ** 2) * 100
+    filled_percentage = (filled_array / (sum(range(total_n_neurons)))) * 100
     mean_filled = np.mean(filled_percentage)
     std_filled = np.std(filled_percentage)
 
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     write_to_csv(directory, "Qb_solv_energies", arguments_list, [i for i in range(int(time / dt))], qb_solv_energies_for_runs_layout, qb_solv_averages, qb_solv_stds)
     write_to_csv(directory, "Differences all-accuracies", arguments_list, diff_column_names, None, acc_averages_diff_all, acc_stds_diff_all)
     write_to_csv(directory, "Differences proportion-accuracies", arguments_list, diff_column_names, None, acc_averages_diff_proportion, acc_stds_diff_proportion)
-    write_to_csv(directory, "Filled Percentage of QUBO", arguments_list, None, None, mean_filled, std_filled)
+    write_to_csv(directory, "Filled Percentage of QUBO", arguments_list, None, None, [mean_filled], [std_filled])
 
     acc_averages = {"b_all": acc_averages_b_all, "b_proportion": acc_averages_b_proportion, "qa_all": acc_averages_qa_all, "qa_proportion": acc_averages_qa_proportion}
     acc_stds = {"b_all": acc_stds_b_all, "b_proportion": acc_stds_b_proportion, "qa_all": acc_stds_qa_all, "qa_proportion": acc_stds_qa_proportion}
