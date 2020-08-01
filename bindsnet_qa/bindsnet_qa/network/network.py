@@ -308,7 +308,7 @@ class Network(torch.nn.Module):
         # and adaptive thresholds
         l_ae_v.theta *= l_ae_v.theta_decay
 
-        start_before = clock.time()
+        # start_before = clock.time()
         # get tensors as lists for quicker access
         weights_x_ae = self.connections[('X', 'Ae')].w.tolist()
         weights_ae_ai = self.connections[('Ae', 'Ai')].w.tolist()
@@ -334,7 +334,7 @@ class Network(torch.nn.Module):
         inputs_ae = [0] * n_ae
         inputs_ai = [0] * n_ai
 
-        # go through layers (and corresponding Input-connections)
+        # diagonal: go through layers
 
         # Layer X of Input-Neurons: nothing to do
 
@@ -343,35 +343,8 @@ class Network(torch.nn.Module):
             # Could spike -> needs constraints
             if refrac_count_ae[node_ae] == 0:
                 nr_ae = node_ae + encoding_ae
-
-                # diagonal
                 # = threshold + adaptive threshold theta - membrane potential
                 qubo[(nr_ae, nr_ae)] = thresh_ae + theta[node_ae] - v_ae[node_ae]  # + NUDGE?
-
-                # off-diagonal, Inputs from layer X (connection X->Ae)
-                # we work in the upper triangular matrix, connection goes from row to column
-                for node_x in range(n_x):
-                    # first check if input spike value not 0 -> otherwise, we can skip this
-                    if not s_view_x[node_x] == 0:
-                        inp = s_view_x[node_x] * weights_x_ae[node_x][node_ae]
-                        # input layer X is first layer -> node number equals position in qubo
-                        qubo[(node_x, nr_ae)] = -1 * inp
-                        inputs_ae[node_ae] += inp
-
-                # off-diagonal, Inputs from layer Ai (connection Ai->Ae)
-                # we work in the upper triangular matrix, connection goes from column to row
-                # actual connections (where weights ≠ 0) are only where node_ae ≠ node_ai
-                for node_ai in range(n_ai):
-                    if not node_ae == node_ai:
-                        # first check if input spike value not 0 -> otherwise, we can skip this
-                        if s_view_ai[node_ai]:
-                            # as spikes in network are always 1
-                            # we can skip multiplication of weight with s_view_ai[node_ai]
-                            inp = weights_ai_ae[node_ai][node_ae]
-                            column_nr = node_ai + encoding_ai
-                            qubo[(nr_ae, column_nr)] = -1 * inp
-                            inputs_ae[node_ae] += inp
-
             # else: reward can be omitted for excitatory neurons -> done here for performance reasons
 
         # Layer Ai of inhibitory Nodes
@@ -379,31 +352,66 @@ class Network(torch.nn.Module):
             # Could spike -> needs constraints
             if refrac_count_ai[node] == 0:
                 nr_ai = node + encoding_ai
-
-                # diagonal
                 # = threshold - membrane potential
                 qubo[(nr_ai, nr_ai)] = thresh_ai - v_ai[node]  # + NUDGE?
-
-                # off-diagonal, Inputs from layer Ae (connection Ae->Ai)
-                # we work in the upper triangular matrix, connection goes from row to column
-                # actual connections (where weights ≠ 0) are only where node_ai = node_ae
-                # first check if input spike value not 0 -> otherwise, we can skip this
-                if s_view_ae[node]:
-                    # as spikes in network are always 1
-                    # we can skip multiplication of weight with s_view_ae[node]
-                    inp = weights_ae_ai[node][node]
-                    nr_ae = node + encoding_ae
-                    qubo[(nr_ae, nr_ai)] = -1 * inp
-                    inputs_ai[node] += inp
             else:  # might just have spiked -> needs reward to clamp qubit to 1
                 # reward would not harm if neuron did not spike, but clamping in qbsolv easier without
                 if s_view_ai[node]:
                     nr_ai = node + encoding_ai
                     qubo[(nr_ai, nr_ai)] = reward_ai
 
-        end_before = clock.time()
-        elapsed_before = end_before - start_before
-        print("\n Wall clock time before: %fs" % elapsed_before)
+        # off-diagonal: go through input spikes from layers / connections
+        # non-zero indices in input spikes
+        ind_x = [i for i, e in enumerate(s_view_x) if e != 0]
+        ind_ai = [i for i, e in enumerate(s_view_ai) if e != 0]
+        ind_ae = [i for i, e in enumerate(s_view_ae) if e != 0]
+
+        # Inputs from layer X (connection X->Ae)
+        # we work in the upper triangular matrix, connection goes from row to column
+        for node_x in ind_x:
+            for node_ae in range(n_ae):
+                # Could spike -> needs constraints
+                if refrac_count_ae[node_ae] == 0:
+                    nr_ae = node_ae + encoding_ae
+                    inp = s_view_x[node_x] * weights_x_ae[node_x][node_ae]
+                    # input layer X is first layer -> node number equals position in qubo
+                    qubo[(node_x, nr_ae)] = -1 * inp
+                    inputs_ae[node_ae] += inp
+
+        # Inputs from layer Ai (connection Ai->Ae)
+        # we work in the upper triangular matrix, connection goes from column to row
+        # actual connections (where weights ≠ 0) are only where node_ae ≠ node_ai
+        for node_ai in ind_ai:
+            for node_ae in range(n_ae):
+                if not node_ae == node_ai:
+                    # Could spike -> needs constraints
+                    if refrac_count_ae[node_ae] == 0:
+                            nr_ae = node_ae + encoding_ae
+                            # as spikes in network are always 1
+                            # we can skip multiplication of weight with s_view_ai[node_ai]
+                            inp = weights_ai_ae[node_ai][node_ae]
+                            column_nr = node_ai + encoding_ai
+                            qubo[(nr_ae, column_nr)] = -1 * inp
+                            inputs_ae[node_ae] += inp
+
+        # Inputs from layer Ae (connection Ae->Ai)
+        # we work in the upper triangular matrix, connection goes from row to column
+        # actual connections (where weights ≠ 0) are only where node_ai = node_ae
+        for node in ind_ae:
+            # Could spike -> needs constraints
+            if refrac_count_ai[node] == 0:
+                nr_ai = node + encoding_ai
+                # as spikes in network are always 1
+                # we can skip multiplication of weight with s_view_ae[node]
+                inp = weights_ae_ai[node][node]
+                nr_ae = node + encoding_ae
+                qubo[(nr_ae, nr_ai)] = -1 * inp
+                inputs_ai[node] += inp
+
+        #end_before = clock.time()
+        #elapsed_before = end_before - start_before
+        #print("\n Wall clock time before: %fs" % elapsed_before)
+
         # Wegen Hin- und Rückconnection: Verfälscht "Rüberklappen" Inhalt,
         # da connection von Ae nach Ai ≠ connection von Ai nach Ae?
         # -> Nein, denn: Wenn connection Ae->Ai existiert, dann existiert nicht wirklich Ai->Ae und umgekehrt
@@ -421,16 +429,16 @@ class Network(torch.nn.Module):
         # => "Rüberklappen" kein Problem, da keine Verfälschung
 
         # call Quantum Annealer or simulator (creates a triangular matrix out of qubo by itsself)
-        start_qb = clock.time()
+        #start_qb = clock.time()
         # originally num_repeats=40, seems to work well with num_repeats=1, too (-> now default)
         solution = qbs.QBSolv().sample_qubo(qubo, num_repeats=num_repeats, verbosity=-1)
-        end_qb = clock.time()
-        elapsed_qb = end_qb - start_qb
-        print("\n Wall clock time qbsolv: %fs" % elapsed_qb)
+        #end_qb = clock.time()
+        #elapsed_qb = end_qb - start_qb
+        #print("\n Wall clock time qbsolv: %fs" % elapsed_qb)
         # print("\n Energy of qbsolv-solution: %f" % solution.first.energy) -> return instead
         solution_sample = solution.first.sample
 
-        start_after_qb = clock.time()
+        #start_after_qb = clock.time()
         #evaluate how much of the qubo is filled (i.e. not zero)
         filled = len(qubo) - [qubo.values()].count(0)
 
@@ -493,9 +501,9 @@ class Network(torch.nn.Module):
         l_ai_v.refrac_count.masked_fill_(spiketensor_ai, l_ai_v.refrac)
         l_ai_v.v.masked_fill_(spiketensor_ai, l_ai_v.reset)
 
-        end_after_qb = clock.time()
-        elapsed_after_qb = end_after_qb - start_after_qb
-        print("\n Wall clock time after: %fs" % elapsed_after_qb)
+        #end_after_qb = clock.time()
+        #elapsed_after_qb = end_after_qb - start_after_qb
+        #print("\n Wall clock time after: %fs" % elapsed_after_qb)
         return solution.first.energy, filled
     # end of forward_qa
 
@@ -570,6 +578,7 @@ class Network(torch.nn.Module):
         qb_solv_energies = []
         filled = []
 
+        # start = clock.time()
         # calculate possible Quantum Annealing penalties / rewards once
         #for all inhibitory layers (can be omitted for excitatory layers for performance reasons)
         # -> here only layer Ai
@@ -578,6 +587,9 @@ class Network(torch.nn.Module):
         # calculate encoding for QUBO once to remember at which row_nr / column_nr which layer starts
         encoding_ae = 784  # Number of nodes in Input-Layer when learning MNIST
         encoding_ai = 784 + self.layers['Ae'].n
+        # end = clock.time()
+        # elapsed = end - start
+        # print("\n Wall clock time avoidable: %fs" % elapsed)
 
         # Simulate network activity for `time` timesteps.
         for t in range(timesteps):
@@ -587,11 +599,11 @@ class Network(torch.nn.Module):
             self.layers['X'].forward(x=inputs['X'][t])
 
             # forward-step with quantum annealing
-            start_network = clock.time()
+            # start_network = clock.time()
             qb_solv_energy, filled_one = self.forward_qa(encoding_ae, encoding_ai, reward_ai,  num_repeats=num_repeats)
-            end_forward = clock.time()
-            elapsed_forward = end_forward - start_network
-            print("\n Wall clock time forward_qa(): %fs" % elapsed_forward)
+            # end_forward = clock.time()
+            # elapsed_forward = end_forward - start_network
+            # print("\n Wall clock time forward_qa(): %fs" % elapsed_forward)
             # start_append = clock.time()
             qb_solv_energies.append(qb_solv_energy)
             filled.append(filled_one)
