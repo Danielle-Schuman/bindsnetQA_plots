@@ -87,7 +87,10 @@ def plot_training_accuracy(
     ax.set_xlabel("No. of examples")
     ax.set_ylabel("Training accuracy in %")
     # to have readable number on x-axis, there can be at most 20 ticks; ticks should be multiples of update_interval
-    xticks = int(list_length / 20) * update_interval
+    if list_length > 20:
+        xticks = int(list_length / 20) * update_interval
+    else:
+        xticks = update_interval
     ax.set_xticks(range(0, (end + update_interval), xticks))
     ax.set_yticks(range(0, 110, 10))
     ax.legend()
