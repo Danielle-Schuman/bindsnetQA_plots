@@ -1,6 +1,6 @@
 import tempfile
 from typing import Dict, Optional, Type, Iterable
-# import time as clock
+import time as clock
 
 import torch
 import dwave_qbsolv as qbs
@@ -292,119 +292,105 @@ class Network(torch.nn.Module):
         # reward is now bigger than the cumulative value of all "new" outputs from the layer in this timestep
         return reward
 
-    def forward_qa(self, penalties_and_rewards: dict, num_repeats: int) -> float:
+    def forward_qa(self, encoding_ae: int, encoding_ai: int, reward_ai: float, num_repeats: int) -> float:
         # language=rst
         """
         Runs a single simulation step.
         Only works for batch_size = 1 and DiehlAndCook-Network.
         """
-        conn = self.connections
-        inputs = {}  # shape: number of layers * number of neurons
-        qubo = {}  # shape: (number of neurons * number of layers)^2
-        encoding = {}  # to remember at which row_nr which layer starts, shape: number of layers
-        nr_of_prev_nodes = 0
-
-        for l in self.layers:
-            l_v = self.layers[l]
-            inputs[l] = torch.zeros(1, l_v.n)  # a tensor for each layer
-            encoding[l] = nr_of_prev_nodes
-            nr_of_prev_nodes += l_v.n
-
-            # Decay voltages.
-            if l == 'Ae':  # layer of DiehlAndCookNodes
-                l_v.v = l_v.decay * (l_v.v - l_v.rest) + l_v.rest
-                # and adaptive thresholds
-                l_v.theta *= l_v.theta_decay
-            elif l == 'Ai':  # layer of LIF-Nodes
-                l_v.v = l_v.decay * (l_v.v - l_v.rest) + l_v.rest
-            # else: l == 'X' -> layer of Input-Nodes -> does not have a voltage
-
-
-        # prepare Quantum Annealing and get inputs
-        # go through layers (and corresponding Input-connections)
         l_ae_v = self.layers['Ae']
         l_ai_v = self.layers['Ai']
 
-        # Layer X of Input-Neurons: nothing to do
+        # Decay voltages.
+        l_ae_v.v = l_ae_v.decay * (l_ae_v.v - l_ae_v.rest) + l_ae_v.rest
+        l_ai_v.v = l_ai_v.decay * (l_ai_v.v - l_ai_v.rest) + l_ai_v.rest
+        # input layer does not have voltage
+        # and adaptive thresholds
+        l_ae_v.theta *= l_ae_v.theta_decay
 
-        # Layer Ae of excitatory DiehlAndCook-Nodes
-        # needed later for Inputs from layers X and Ai (connections X->Ae and Ai->Ae)
+        start_before = clock.time()
+        # get tensors as lists for quicker access
+        weights_x_ae = self.connections[('X', 'Ae')].w.tolist()
+        weights_ae_ai = self.connections[('Ae', 'Ai')].w.tolist()
+        weights_ai_ae = self.connections[('Ai', 'Ae')].w.tolist()
+        refrac_count_ae = l_ae_v.refrac_count[0].tolist()
+        refrac_count_ai = l_ai_v.refrac_count[0].tolist()
+        thresh_ae = l_ae_v.thresh.item()
+        theta = l_ae_v.theta.tolist()
+        thresh_ai = l_ai_v.thresh.item()
+        v_ae = l_ae_v.v[0].tolist()
+        v_ai = l_ai_v.v[0].tolist()
+        # input spikes from layers
         s_view_x = self.layers['X'].s.float().view(self.layers['X'].s.size(0), -1)[0].tolist()
         s_view_ai = self.layers['Ai'].s.float().view(self.layers['Ai'].s.size(0), -1)[0].tolist()
+        s_view_ae = self.layers['Ae'].s.float().view(self.layers['Ae'].s.size(0), -1)[0].tolist()
 
+        # prepare Quantum Annealing and get inputs
+        qubo = {}  # shape: (number of neurons * number of layers)^2
+        # for storing weighted inputs
+        inputs_ae = [0] * l_ae_v.n
+        inputs_ai = [0] * l_ai_v.n
+
+        # go through layers (and corresponding Input-connections)
+
+        # Layer X of Input-Neurons: nothing to do
+
+        # Layer Ae of excitatory Nodes
         for node_ae in range(l_ae_v.n):
             # Could spike -> needs constraints
-            if l_ae_v.refrac_count[0, node_ae].item() == 0:
-                nr_ae = node_ae + encoding['Ae']
+            if refrac_count_ae[node_ae] == 0:
+                nr_ae = node_ae + encoding_ae
 
+                start31 = clock.time()
                 # diagonal
-                # = threshold + variable threshold theta - (voltage + connection-bias)
-                # for c in conn: not needed in this case: always bias = 0
-                    # if c[1] == 'Ae':
-                        # l_ae_v.v[0, node] += conn[c].b[node]
-                qubo[(nr_ae, nr_ae)] = l_ae_v.thresh.item() + l_ae_v.theta[node_ae].item() - l_ae_v.v[0, node_ae].item()
-                    # + NUDGE?
-
-                # off-diagonal, same layer
-                # l_v.one_spike is always true in this example -> ensure just one node in this layer spikes
-                for other_ae_node in range((node_ae + 1), l_ae_v.n):
-                    # node_column is not in refractory period either
-                    if l_ae_v.refrac_count[0, other_ae_node].item() == 0:
-                        other_nr = other_ae_node + encoding['Ae']
-                        # penalty to make sure nodes do not spike at the same time
-                        qubo[(nr_ae, other_nr)] = penalties_and_rewards['Ae']
+                # = threshold + adaptive threshold theta - membrane potential
+                qubo[(nr_ae, nr_ae)] = thresh_ae + theta[node_ae] - v_ae[node_ae]  # + NUDGE?
 
                 # off-diagonal, Inputs from layer X (connection X->Ae)
                 # we work in the upper triangular matrix, connection goes from row to column
                 for node_x in range(self.layers['X'].n):
-                    inp = s_view_x[node_x] * conn[('X', 'Ae')].w[node_x, node_ae].item()
-                    nr_x = node_x + encoding['X']
-                    qubo[(nr_x, nr_ae)] = -1 * inp
-                    inputs['Ae'][0, node_ae] += inp
+                    inp = s_view_x[node_x] * weights_x_ae[node_x][node_ae]
+                    # input layer X is first layer -> node number equals position in qubo
+                    qubo[(node_x, nr_ae)] = -1 * inp
+                    inputs_ae[node_ae] += inp
 
                 # off-diagonal, Inputs from layer Ai (connection Ai->Ae)
                 # we work in the upper triangular matrix, connection goes from column to row
                 # actual connections (where weights ≠ 0) are only where node_ae ≠ node_ai
-                for node_ai in range(self.layers['Ai'].n):
+                for node_ai in range(l_ai_v.n):
                     if not node_ae == node_ai:
-                        inp = s_view_ai[node_ai] * conn[('Ai', 'Ae')].w[node_ai, node_ae].item()
-                        column_nr = node_ai + encoding['Ai']
+                        inp = s_view_ai[node_ai] * weights_ai_ae[node_ai][node_ae]
+                        column_nr = node_ai + encoding_ai
                         qubo[(nr_ae, column_nr)] = -1 * inp
-                        inputs['Ae'][0, node_ae] += inp
+                        inputs_ae[node_ae] += inp
 
             # else: reward can be omitted for excitatory neurons -> done here for performance reasons
 
         # Layer Ai of inhibitory LIF-Nodes
-        # needed later for Inputs from layer Ae (connection Ae->Ai)
-        s_view_ae = self.layers['Ae'].s.float().view(self.layers['Ae'].s.size(0), -1)[0].tolist()
-
         for node in range(l_ai_v.n):
             # Could spike -> needs constraints
-            if l_ai_v.refrac_count[0, node].item() == 0:
-                nr_ai = node + encoding['Ai']
+            if refrac_count_ai[node] == 0:
+                nr_ai = node + encoding_ai
 
                 # diagonal
-                # = threshold - (voltage + connection-bias)
-                # for c in conn: not needed in this case: always bias = 0
-                    # if c[1] == 'Ai':
-                        # l_ai_v.v[0, node] += conn[c].b[node]
-                qubo[(nr_ai, nr_ai)] = l_ai_v.thresh.item() - l_ai_v.v[0, node].item() # + NUDGE?
-
-                # for off-diagonal, same layer: nothing to do
+                # = threshold - membrane potential
+                qubo[(nr_ai, nr_ai)] = thresh_ai - v_ai[node]  # + NUDGE?
 
                 # off-diagonal, Inputs from layer Ae (connection Ae->Ai)
                 # we work in the upper triangular matrix, connection goes from row to column
                 # actual connections (where weights ≠ 0) are only where node_ai = node_ae
-                inp = s_view_ae[node] * conn[('Ae', 'Ai')].w[node, node].item()
-                nr_ae = node + encoding['Ae']
+                inp = s_view_ae[node] * weights_ae_ai[node][node]
+                nr_ae = node + encoding_ae
                 qubo[(nr_ae, nr_ai)] = -1 * inp
-                inputs['Ai'][0, node] += inp
-            else: # might just have spiked -> needs reward to clamp qubit to 1
+                inputs_ai[node] += inp
+            else:  # might just have spiked -> needs reward to clamp qubit to 1
                 if s_view_ai[node]:  # reward would not harm if neuron did not spike, but embedding easier without
-                    nr_ai = node + encoding['Ai']
-                    qubo[(nr_ai, nr_ai)] = penalties_and_rewards['Ai']
+                    nr_ai = node + encoding_ai
+                    qubo[(nr_ai, nr_ai)] = reward_ai
 
-
+        end_before = clock.time()
+        elapsed_before = end_before - start_before
+        print("\n Wall clock time before: %fs" % elapsed_before)
         # Wegen Hin- und Rückconnection: Verfälscht "Rüberklappen" Inhalt,
         # da connection von Ae nach Ai ≠ connection von Ai nach Ae?
         # -> Nein, denn: Wenn connection Ae->Ai existiert, dann existiert nicht wirklich Ai->Ae und umgekehrt
@@ -422,51 +408,81 @@ class Network(torch.nn.Module):
         # => "Rüberklappen" kein Problem, da keine Verfälschung
 
         # call Quantum Annealer or simulator (creates a triangular matrix out of qubo by itsself)
-        # start = clock.time()
+        start_qb = clock.time()
         # originally num_repeats=40, seems to work well with num_repeats=1, too (-> now default)
         solution = qbs.QBSolv().sample_qubo(qubo, num_repeats=num_repeats, verbosity=-1)
-        # end = clock.time()
-        # elapsed = end - start
-        # print("\n Wall clock time qbsolv: %fs" % elapsed)
+        end_qb = clock.time()
+        elapsed_qb = end_qb - start_qb
+        print("\n Wall clock time qbsolv: %fs" % elapsed_qb)
         # print("\n Energy of qbsolv-solution: %f" % solution.first.energy) -> return instead
+        solution_sample = solution.first.sample
 
+        start_after_qb = clock.time()
         #evaluate how much of the qubo is filled (i.e. not zero)
-        filled = len(qubo) - list(qubo.values()).count(0)
+        filled = len(qubo) - [qubo.values()].count(0)
 
-        for l in self.layers:
-            l_v = self.layers[l]
-            # write spikes from (first) solution by filtering out 1s from neurons in refractory period
-            if not l == 'X':  # not layer of Input-Nodes
-                spikes = torch.full((1, l_v.n), False, dtype=torch.bool)
-                nr = encoding[l]
-                for node in range(l_v.n):
-                    # is not in refractory period (has not just spiked) -> could spike
-                    if l_v.refrac_count[0, node].item() == 0:
-                        if solution.first.sample[nr + node] == 1:
-                                spikes[0][node] = True
-                l_v.s = spikes
+        # Layer Ae
+        # write spikes from (first) solution by filtering out 1s from neurons in refractory period
+        spikes_ae = [False] * l_ae_v.n
+        for node in range(l_ae_v.n):
+            # is not in refractory period (has not just spiked) -> could spike
+            if refrac_count_ae[node] == 0:
+                if solution_sample[encoding_ae + node] == 1:
+                        spikes_ae[node] = True
+        spiketensor_ae = torch.tensor([spikes_ae])
 
-                # Integrate inputs into voltage
-                # (bias not necessary, as always = 0 in this example, inputs are zero where in refrac-period
-                # -> no need to check, Input-layer does not have voltage)
-                l_v.v += inputs[l]
+        # Integrate inputs into voltage
+        # (bias not necessary, as always = 0 in this example, inputs are zero where in refrac-period
+        # -> no need to check, Input-layer does not have voltage)
+        l_ae_v.v += torch.tensor([inputs_ae])
 
-                # Decrement refractory counters. (Input-layer does not have refrac_count)
-                l_v.refrac_count = (l_v.refrac_count > 0).float() * (l_v.refrac_count - l_v.dt)
+        # Decrement refractory counters. (Input-layer does not have refrac_count)
+        refrac_ae = l_ae_v.refrac_count  # as a tensor
+        l_ae_v.refrac_count = (refrac_ae > 0).float() * (refrac_ae - l_ae_v.dt)
 
-                # Refractoriness, voltage reset, and adaptive thresholds.
-                l_v.refrac_count.masked_fill_(l_v.s, l_v.refrac)
-                l_v.v.masked_fill_(l_v.s, l_v.reset)
-                if l == 'Ae':  # layer of DiehlAndCookNodes
-                    l_v.theta += l_v.theta_plus * l_v.s.float().sum(0)
+        # Refractoriness, voltage reset, and adaptive thresholds.
+        l_ae_v.refrac_count.masked_fill_(spiketensor_ae, l_ae_v.refrac)
+        l_ae_v.v.masked_fill_(spiketensor_ae, l_ae_v.reset)
+        l_ae_v.theta += l_ae_v.theta_plus * spiketensor_ae.float().sum(0)
 
-                # from super().forward(...) (-> already called for Input-nodes)
-                # -> l_v.x not used apart from in Input layer
-                #if l_v.traces:
-                    # Decay and set spike traces.
-                    #l_v.x *= l_v.trace_decay
-                    # Since l_v.traces_additive is always false
-                    #l_v.x.masked_fill_(l_v.s != 0, 1)
+        # Choose only a single neuron to spike.
+        l_ae_v.s.zero_()  # set all spikes to 0
+        # if there are any spikes in spiketensor_ae, set one of these to 1 in l_ae_v.s
+        if spiketensor_ae.any():
+            _any = spiketensor_ae.view(l_ae_v.batch_size, -1).any(1)
+            ind = torch.multinomial(
+                spiketensor_ae.float().view(l_ae_v.batch_size, -1)[_any], 1
+            )
+            _any = _any.nonzero()
+            l_ae_v.s.view(l_ae_v.batch_size, -1)[_any, ind] = 1
+
+        # Layer Ai
+        # write spikes from (first) solution by filtering out 1s from neurons in refractory period
+        spikes_ai = [False] * l_ai_v.n
+        for node in range(l_ai_v.n):
+            # is not in refractory period (has not just spiked) -> could spike
+            if refrac_count_ai[node] == 0:
+                if solution_sample[encoding_ai + node] == 1:
+                    spikes_ai[node] = True
+        spiketensor_ai = torch.tensor([spikes_ai])
+        l_ai_v.s = spiketensor_ai
+
+        # Integrate inputs into voltage
+        # (bias not necessary, as always = 0 in this example, inputs are zero where in refrac-period
+        # -> no need to check, Input-layer does not have voltage)
+        l_ai_v.v += torch.tensor([inputs_ai])
+
+        # Decrement refractory counters. (Input-layer does not have refrac_count)
+        refrac_ai = l_ai_v.refrac_count
+        l_ai_v.refrac_count = (refrac_ai > 0).float() * (refrac_ai - l_ai_v.dt)
+
+        # Refractoriness, voltage reset, and adaptive thresholds.
+        l_ai_v.refrac_count.masked_fill_(spiketensor_ai, l_ai_v.refrac)
+        l_ai_v.v.masked_fill_(spiketensor_ai, l_ai_v.reset)
+
+        end_after_qb = clock.time()
+        elapsed_after_qb = end_after_qb - start_after_qb
+        print("\n Wall clock time after: %fs" % elapsed_after_qb)
         return solution.first.energy, filled
     # end of forward_qa
 
@@ -534,56 +550,21 @@ class Network(torch.nn.Module):
         """
         # Parse keyword arguments.
         clamps = kwargs.get("clamp", {})
-        # unclamps = kwargs.get("unclamp", {}) -> not used
         masks = kwargs.get("masks", {})
-        # injects_v = kwargs.get("injects_v", {}) -> not used
-
-        # Compute reward. -> not used
-        # if self.reward_fn is not None:
-            # kwargs["reward"] = self.reward_fn.compute(**kwargs)
-
-        # Dynamic setting of batch size. -> not used
-        # if inputs != {}:
-            # for key in inputs:
-                # goal shape is [time, batch, n_0, ...]
-                # if len(inputs[key].size()) == 1:
-                    # current shape is [n_0, ...]
-                    # unsqueeze twice to make [1, 1, n_0, ...]
-                    # inputs[key] = inputs[key].unsqueeze(0).unsqueeze(0)
-                # elif len(inputs[key].size()) == 2:
-                    # current shape is [time, n_0, ...]
-                    # unsqueeze dim 1 so that we have
-                    # [time, 1, n_0, ...]
-                    # inputs[key] = inputs[key].unsqueeze(1)
-
-            # for key in inputs:
-                # batch dimension is 1, grab this and use for batch size
-                # if inputs[key].size(1) != self.batch_size:
-                    # self.batch_size = inputs[key].size(1)
-
-                    # for l in self.layers:
-                        # self.layers[l].set_batch_size(self.batch_size)
-
-                    # for m in self.monitors:
-                        # self.monitors[m].reset_state_variables()
-
-                # break
 
         # Effective number of timesteps.
         timesteps = int(time / self.dt)
         qb_solv_energies = []
         filled = []
 
-        # calculate possible Quantum Annealing penalties once
-        penalties_and_rewards = {}
-        # for l in self.layers:
-        # if isinstance(self.layers[l], DiehlAndCookNodes): -> only layer Ae
-        # if self.layers[l].one_spike: -> always the case
-        penalties_and_rewards['Ae'] = self.penalty_one_spike(layer='Ae')
+        # calculate possible Quantum Annealing penalties / rewards once
         #for all inhibitory layers (can be omitted for excitatory layers for performance reasons)
         # -> here only layer Ai
-        penalties_and_rewards['Ai'] = self.reward_inhibitory(layer='Ai')
+        reward_ai = self.reward_inhibitory(layer='Ai')
 
+        # calculate encoding for QUBO once to remember at which row_nr / column_nr which layer starts
+        encoding_ae = 784  # Number of nodes in Input-Layer when learning MNIST
+        encoding_ai = 784 + self.layers['Ae'].n
 
         # Simulate network activity for `time` timesteps.
         for t in range(timesteps):
@@ -593,39 +574,24 @@ class Network(torch.nn.Module):
             self.layers['X'].forward(x=inputs['X'][t])
 
             # forward-step with quantum annealing
-            # start = clock.time()
-            qb_solv_energy, filled_one = self.forward_qa(penalties_and_rewards, num_repeats=num_repeats)
+            start_network = clock.time()
+            qb_solv_energy, filled_one = self.forward_qa(encoding_ae, encoding_ai, reward_ai,  num_repeats=num_repeats)
+            end_forward = clock.time()
+            elapsed_forward = end_forward - start_network
+            print("\n Wall clock time forward_qa(): %fs" % elapsed_forward)
+            # start_append = clock.time()
             qb_solv_energies.append(qb_solv_energy)
             filled.append(filled_one)
-            # end = clock.time()
-            # elapsed = end - start
-            # print("\n Wall clock time forward_qa(): %fs" % elapsed)
+            # end_after_append = clock.time()
+            # elapsed_after_append = end_after_append - start_append
+            # print("\n Wall clock time append(): %fs" % elapsed_after_append)
 
-            # for l in self.layers: -> happens just for layer Ae
+            # for l in self.layers: -> happens just for layer Ae, if at all
 
             # Clamp neurons to spike. -> happens just for layer Ae
             clamp = clamps.get('Ae', None)
-            # if clamp is not None: -> always the case with this layer
-            # if clamp.ndimension() == 1: -> always the case with this layer
-            self.layers['Ae'].s[:, clamp] = 1
-            # else: -> not used
-                # self.layers[l].s[:, clamp[t]] = 1
-
-                # Clamp neurons not to spike.-> not used -> kick out?
-                # unclamp = unclamps.get(l, None)
-                # if unclamp is not None:
-                    # if unclamp.ndimension() == 1:
-                        # self.layers[l].s[unclamp] = 0
-                    # else:
-                        # self.layers[l].s[unclamp[t]] = 0
-
-                # Inject voltage to neurons. -> not used -> kick out?
-                # inject_v = injects_v.get(l, None)
-                # if inject_v is not None:
-                    # if inject_v.ndimension() == 1:
-                        # self.layers[l].v += inject_v
-                    # else:
-                        # self.layers[l].v += inject_v[t]
+            if clamp is not None:
+                self.layers['Ae'].s[:, clamp] = 1
 
             # Run synapse updates.
             for c in self.connections:

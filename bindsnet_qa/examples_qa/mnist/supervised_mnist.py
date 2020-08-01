@@ -24,7 +24,7 @@ from bindsnet_qa.analysis.plotting import (
 )
 
 def supervised_mnist(seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, dt, intensity, num_repeats, update_interval, train, plot, directory, gpu):
-    start = clock.time()
+    start_qa = clock.time()
 
     if gpu:
         torch.set_default_tensor_type("torch.cuda.FloatTensor")
@@ -211,8 +211,8 @@ def supervised_mnist(seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, 
 
     print("Progress: %d / %d \n" % (n_train, n_train))
     print("Training complete.\n")
-    end = clock.time()
-    elapsed = end - start
-    # print("Wall clock time taken: %fs." % elapsed)
+    end_qa = clock.time()
+    elapsed_qa = end_qa - start_qa
+    print("Wall clock time taken BindsNET_QA: %fs." % elapsed_qa)
 
-    return accuracy, elapsed, qb_solv_energies, filled
+    return accuracy, elapsed_qa, qb_solv_energies, filled
