@@ -292,7 +292,7 @@ class Network(torch.nn.Module):
         # reward is now bigger than the cumulative value of all "new" outputs from the layer in this timestep
         return reward
 
-    def forward_qa(self, encoding_ae: int, encoding_ai: int, reward_ai: float, num_repeats: int) -> float:
+    def forward_qa(self, encoding_ae: int, encoding_ai: int, reward_ai: float, num_repeats: int):
         # language=rst
         """
         Runs a single simulation step.
@@ -320,6 +320,9 @@ class Network(torch.nn.Module):
         thresh_ai = l_ai_v.thresh.item()
         v_ae = l_ae_v.v[0].tolist()
         v_ai = l_ai_v.v[0].tolist()
+        n_ae = l_ae_v.n
+        n_ai = l_ai_v.n
+        n_x = self.layers['X'].n
         # input spikes from layers
         s_view_x = self.layers['X'].s.float().view(self.layers['X'].s.size(0), -1)[0].tolist()
         s_view_ai = self.layers['Ai'].s.float().view(self.layers['Ai'].s.size(0), -1)[0].tolist()
@@ -328,46 +331,51 @@ class Network(torch.nn.Module):
         # prepare Quantum Annealing and get inputs
         qubo = {}  # shape: (number of neurons * number of layers)^2
         # for storing weighted inputs
-        inputs_ae = [0] * l_ae_v.n
-        inputs_ai = [0] * l_ai_v.n
+        inputs_ae = [0] * n_ae
+        inputs_ai = [0] * n_ai
 
         # go through layers (and corresponding Input-connections)
 
         # Layer X of Input-Neurons: nothing to do
 
         # Layer Ae of excitatory Nodes
-        for node_ae in range(l_ae_v.n):
+        for node_ae in range(n_ae):
             # Could spike -> needs constraints
             if refrac_count_ae[node_ae] == 0:
                 nr_ae = node_ae + encoding_ae
 
-                start31 = clock.time()
                 # diagonal
                 # = threshold + adaptive threshold theta - membrane potential
                 qubo[(nr_ae, nr_ae)] = thresh_ae + theta[node_ae] - v_ae[node_ae]  # + NUDGE?
 
                 # off-diagonal, Inputs from layer X (connection X->Ae)
                 # we work in the upper triangular matrix, connection goes from row to column
-                for node_x in range(self.layers['X'].n):
-                    inp = s_view_x[node_x] * weights_x_ae[node_x][node_ae]
-                    # input layer X is first layer -> node number equals position in qubo
-                    qubo[(node_x, nr_ae)] = -1 * inp
-                    inputs_ae[node_ae] += inp
+                for node_x in range(n_x):
+                    # first check if input spike value not 0 -> otherwise, we can skip this
+                    if not s_view_x[node_x] == 0:
+                        inp = s_view_x[node_x] * weights_x_ae[node_x][node_ae]
+                        # input layer X is first layer -> node number equals position in qubo
+                        qubo[(node_x, nr_ae)] = -1 * inp
+                        inputs_ae[node_ae] += inp
 
                 # off-diagonal, Inputs from layer Ai (connection Ai->Ae)
                 # we work in the upper triangular matrix, connection goes from column to row
                 # actual connections (where weights ≠ 0) are only where node_ae ≠ node_ai
-                for node_ai in range(l_ai_v.n):
+                for node_ai in range(n_ai):
                     if not node_ae == node_ai:
-                        inp = s_view_ai[node_ai] * weights_ai_ae[node_ai][node_ae]
-                        column_nr = node_ai + encoding_ai
-                        qubo[(nr_ae, column_nr)] = -1 * inp
-                        inputs_ae[node_ae] += inp
+                        # first check if input spike value not 0 -> otherwise, we can skip this
+                        if s_view_ai[node_ai]:
+                            # as spikes in network are always 1
+                            # we can skip multiplication of weight with s_view_ai[node_ai]
+                            inp = weights_ai_ae[node_ai][node_ae]
+                            column_nr = node_ai + encoding_ai
+                            qubo[(nr_ae, column_nr)] = -1 * inp
+                            inputs_ae[node_ae] += inp
 
             # else: reward can be omitted for excitatory neurons -> done here for performance reasons
 
-        # Layer Ai of inhibitory LIF-Nodes
-        for node in range(l_ai_v.n):
+        # Layer Ai of inhibitory Nodes
+        for node in range(n_ai):
             # Could spike -> needs constraints
             if refrac_count_ai[node] == 0:
                 nr_ai = node + encoding_ai
@@ -379,12 +387,17 @@ class Network(torch.nn.Module):
                 # off-diagonal, Inputs from layer Ae (connection Ae->Ai)
                 # we work in the upper triangular matrix, connection goes from row to column
                 # actual connections (where weights ≠ 0) are only where node_ai = node_ae
-                inp = s_view_ae[node] * weights_ae_ai[node][node]
-                nr_ae = node + encoding_ae
-                qubo[(nr_ae, nr_ai)] = -1 * inp
-                inputs_ai[node] += inp
+                # first check if input spike value not 0 -> otherwise, we can skip this
+                if s_view_ae[node]:
+                    # as spikes in network are always 1
+                    # we can skip multiplication of weight with s_view_ae[node]
+                    inp = weights_ae_ai[node][node]
+                    nr_ae = node + encoding_ae
+                    qubo[(nr_ae, nr_ai)] = -1 * inp
+                    inputs_ai[node] += inp
             else:  # might just have spiked -> needs reward to clamp qubit to 1
-                if s_view_ai[node]:  # reward would not harm if neuron did not spike, but embedding easier without
+                # reward would not harm if neuron did not spike, but clamping in qbsolv easier without
+                if s_view_ai[node]:
                     nr_ai = node + encoding_ai
                     qubo[(nr_ai, nr_ai)] = reward_ai
 
@@ -423,12 +436,12 @@ class Network(torch.nn.Module):
 
         # Layer Ae
         # write spikes from (first) solution by filtering out 1s from neurons in refractory period
-        spikes_ae = [False] * l_ae_v.n
-        for node in range(l_ae_v.n):
+        spikes_ae = [False] * n_ae
+        for node in range(n_ae):
             # is not in refractory period (has not just spiked) -> could spike
             if refrac_count_ae[node] == 0:
                 if solution_sample[encoding_ae + node] == 1:
-                        spikes_ae[node] = True
+                    spikes_ae[node] = True
         spiketensor_ae = torch.tensor([spikes_ae])
 
         # Integrate inputs into voltage
@@ -458,12 +471,12 @@ class Network(torch.nn.Module):
 
         # Layer Ai
         # write spikes from (first) solution by filtering out 1s from neurons in refractory period
-        spikes_ai = [False] * l_ai_v.n
-        for node in range(l_ai_v.n):
+        spikes_ai = [False] * n_ai
+        for node in range(n_ai):
             # is not in refractory period (has not just spiked) -> could spike
             if refrac_count_ai[node] == 0:
                 if solution_sample[encoding_ai + node] == 1:
-                    spikes_ai[node] = True
+                        spikes_ai[node] = True
         spiketensor_ai = torch.tensor([spikes_ai])
         l_ai_v.s = spiketensor_ai
 
