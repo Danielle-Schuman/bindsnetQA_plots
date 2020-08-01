@@ -308,7 +308,7 @@ class Network(torch.nn.Module):
         # and adaptive thresholds
         l_ae_v.theta *= l_ae_v.theta_decay
 
-        start_before = clock.time()
+        #start_before = clock.time()
         # get tensors as lists for quicker access
         weights_x_ae = self.connections[('X', 'Ae')].w.tolist()
         weights_ae_ai = self.connections[('Ae', 'Ai')].w.tolist()
@@ -401,9 +401,10 @@ class Network(torch.nn.Module):
                     nr_ai = node + encoding_ai
                     qubo[(nr_ai, nr_ai)] = reward_ai
 
-        end_before = clock.time()
-        elapsed_before = end_before - start_before
-        print("\n Wall clock time before: %fs" % elapsed_before)
+        #end_before = clock.time()
+        #elapsed_before = end_before - start_before
+        #print("\n Wall clock time before: %fs" % elapsed_before)
+
         # Wegen Hin- und Rückconnection: Verfälscht "Rüberklappen" Inhalt,
         # da connection von Ae nach Ai ≠ connection von Ai nach Ae?
         # -> Nein, denn: Wenn connection Ae->Ai existiert, dann existiert nicht wirklich Ai->Ae und umgekehrt
@@ -421,16 +422,16 @@ class Network(torch.nn.Module):
         # => "Rüberklappen" kein Problem, da keine Verfälschung
 
         # call Quantum Annealer or simulator (creates a triangular matrix out of qubo by itsself)
-        start_qb = clock.time()
+        #start_qb = clock.time()
         # originally num_repeats=40, seems to work well with num_repeats=1, too (-> now default)
         solution = qbs.QBSolv().sample_qubo(qubo, num_repeats=num_repeats, verbosity=-1)
-        end_qb = clock.time()
-        elapsed_qb = end_qb - start_qb
-        print("\n Wall clock time qbsolv: %fs" % elapsed_qb)
+        #end_qb = clock.time()
+        #elapsed_qb = end_qb - start_qb
+        #print("\n Wall clock time qbsolv: %fs" % elapsed_qb)
         # print("\n Energy of qbsolv-solution: %f" % solution.first.energy) -> return instead
         solution_sample = solution.first.sample
 
-        start_after_qb = clock.time()
+        #start_after_qb = clock.time()
         #evaluate how much of the qubo is filled (i.e. not zero)
         filled = len(qubo) - [qubo.values()].count(0)
 
@@ -493,9 +494,9 @@ class Network(torch.nn.Module):
         l_ai_v.refrac_count.masked_fill_(spiketensor_ai, l_ai_v.refrac)
         l_ai_v.v.masked_fill_(spiketensor_ai, l_ai_v.reset)
 
-        end_after_qb = clock.time()
-        elapsed_after_qb = end_after_qb - start_after_qb
-        print("\n Wall clock time after: %fs" % elapsed_after_qb)
+        #end_after_qb = clock.time()
+        #elapsed_after_qb = end_after_qb - start_after_qb
+        #print("\n Wall clock time after: %fs" % elapsed_after_qb)
         return solution.first.energy, filled
     # end of forward_qa
 
@@ -587,11 +588,11 @@ class Network(torch.nn.Module):
             self.layers['X'].forward(x=inputs['X'][t])
 
             # forward-step with quantum annealing
-            start_network = clock.time()
+            #start_network = clock.time()
             qb_solv_energy, filled_one = self.forward_qa(encoding_ae, encoding_ai, reward_ai,  num_repeats=num_repeats)
-            end_forward = clock.time()
-            elapsed_forward = end_forward - start_network
-            print("\n Wall clock time forward_qa(): %fs" % elapsed_forward)
+            #end_forward = clock.time()
+            #elapsed_forward = end_forward - start_network
+            #print("\n Wall clock time forward_qa(): %fs" % elapsed_forward)
             # start_append = clock.time()
             qb_solv_energies.append(qb_solv_energy)
             filled.append(filled_one)
