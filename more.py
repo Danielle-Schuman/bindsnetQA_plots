@@ -18,8 +18,8 @@ def get_avgs_and_stds_from_csv(filename: str):  # -> List[float], List[float], i
         stds = list(map(float, rows[end - 4]))
         # Averages are always the 6th row from below, in a file created by write_to_csv from main
         avgs = list(map(float, rows[end - 6]))
-        # update_interval is always in the 3rd row from the top, in the 13th column, in a file created by write_to_csv from main
-        update_interval = int(rows[2][12])
+        # update_interval is always in the 3rd row from the top, in the 12th column, in a file created by write_to_csv from main
+        update_interval = int(rows[2][11])
     return avgs, stds, update_interval
 
 
@@ -47,8 +47,8 @@ def get_wall_clock_times_from_csv(filename: str):
     with open(filename, 'r') as csvfile:
         file = csv.reader(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         rows = [row for row in file]
-        # Wallclocktimes always start at 9th row from top, in a file created by write_to_csv from main
-        i = 8
+        # Wallclocktimes always start at 11th row from top, in a file created by write_to_csv from main
+        i = 10
         b_times = []
         qa_times = []
         while rows[i]:  # while row is not empty

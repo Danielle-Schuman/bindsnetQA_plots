@@ -10,15 +10,20 @@ from examples.mnist import supervised_mnist
 from examples_qa.mnist import supervised_mnist as supervised_mnist_qa
 
 
-def write_to_csv(directory: str, heading: str, arguments: list, column_names: Optional[list] = None, content: Optional[List[list]] = None, averages: Optional[list] = None, std: Optional[list] = None):
+def write_to_csv(directory: str, heading: str, arguments: list, column_names: Optional[list] = None, content: Optional[List[list]] = None, averages: Optional[list] = None, std: Optional[list] = None, seeds: Optional[list] = None):
     with open((directory + '/' + heading + '.csv'), 'a+') as csvfile:
         filewriter = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         filewriter.writerow([heading])
-        filewriter.writerow(['Parameters:', 'runs', 'seed', 'n_neurons', 'n_train', 'n_test', 'n_clamp', 'exc', 'inh', 'time', 'dt', 'intensity', 'update_interval', 'train', 'plot', 'num_repeats', 'gpu'])
+        filewriter.writerow(['Parameters:', 'runs', 'n_neurons', 'n_train', 'n_test', 'n_clamp', 'exc', 'inh', 'time', 'dt', 'intensity', 'update_interval', 'train', 'plot', 'num_repeats', 'gpu'])
         parameters = ['']
         parameters.extend(arguments)
         filewriter.writerow(parameters)
         filewriter.writerow([])
+        if seeds is not None:
+            seeds_with_title = ['Seeds:']
+            seeds_with_title.extend(seeds)
+            filewriter.writerow(seeds_with_title)
+            filewriter.writerow([])
         filewriter.writerow([])
         if column_names is not None:
             filewriter.writerow(['Column names:'])
@@ -103,7 +108,6 @@ def plot_training_accuracy(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs", type=int, default=10)
-    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--n_neurons", type=int, default=100)
     parser.add_argument("--n_train", type=int, default=5000)
     parser.add_argument("--n_test", type=int, default=10000)
@@ -126,7 +130,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     runs = args.runs
-    seed = args.seed
     n_neurons = args.n_neurons
     n_train = args.n_train
     n_test = args.n_test
@@ -143,11 +146,12 @@ if __name__ == "__main__":
     directory = args.directory
     other_plots_directory = args.other_plots_directory
     gpu = args.gpu
-    arguments_list = [runs, seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, dt, intensity, update_interval, train, plot, num_repeats, gpu]
+    arguments_list = [runs, n_neurons, n_train, n_test, n_clamp, exc, inh, time, dt, intensity, update_interval, train, plot, num_repeats, gpu]
 
     # determine total number of neurons in network for evalutation, which percentage of the qubo is filled
     total_n_neurons = 784 + 2 * n_neurons
 
+    seeds = []
     accuracies_b_all = []
     accuracies_b_proportion = []
     accuracies_qa_all = []
@@ -158,6 +162,8 @@ if __name__ == "__main__":
     filled_for_runs = []
 
     for run in range(runs):
+        seed = clock.time()
+        seeds.append(seed)
         print("BindsNET: Run %d" % run)
         accuracies_b, wallclocktime_b = supervised_mnist.supervised_mnist(seed, n_neurons, n_train, n_test, n_clamp, exc, inh, time, dt, intensity, update_interval, train, plot, other_plots_directory, gpu)
         # start_betweenstuff1 = clock.time()
@@ -174,7 +180,7 @@ if __name__ == "__main__":
         qb_solv_energies_for_runs.extend(qb_solv_energies)
         qb_solv_energies_for_runs_layout.append('')
         qb_solv_energies_for_runs_layout.extend(qb_solv_energies)
-        # filled_for_runs.extend(filled)
+        filled_for_runs.extend(filled)
         # end_betweenstuff2 = clock.time()
         # print("Wall clock time taken betweenstuff2: %fs." % (end_betweenstuff2 - start_betweenstuff2))
 
@@ -209,15 +215,15 @@ if __name__ == "__main__":
     diff_column_names = [i for i in range(len(acc_averages_diff_all) -1)]
     diff_column_names.append("Average")
 
-    write_to_csv(directory, "Accuracies BindsNET all", arguments_list, [i for i in range(len(accuracies_b_all[0]))], accuracies_b_all, acc_averages_b_all, acc_stds_b_all)
-    write_to_csv(directory, "Accuracies BindsNET proportion", arguments_list, [i for i in range(len(accuracies_b_proportion[0]))], accuracies_b_proportion, acc_averages_b_proportion, acc_stds_b_proportion)
-    write_to_csv(directory, "Accuracies BindsNET_QA all", arguments_list, [i for i in range(len(accuracies_qa_all[0]))], accuracies_qa_all, acc_averages_qa_all, acc_stds_qa_all)
-    write_to_csv(directory, "Accuracies BindsNET_QA proportion", arguments_list, [i for i in range(len(accuracies_qa_proportion[0]))], accuracies_qa_proportion, acc_averages_qa_proportion, acc_stds_qa_proportion)
-    write_to_csv(directory, "Wall clock time taken", arguments_list, ["BindsNet (in sec)", "BindsNET_QA (in sec)"], wallclocktime, np.median(wallclocktime, axis=0))
-    write_to_csv(directory, "Qb_solv_energies", arguments_list, [i for i in range(int(time / dt))], qb_solv_energies_for_runs_layout, qb_solv_averages, qb_solv_stds)
+    write_to_csv(directory, "Accuracies BindsNET all", arguments_list, [i for i in range(len(accuracies_b_all[0]))], accuracies_b_all, acc_averages_b_all, acc_stds_b_all, seeds)
+    write_to_csv(directory, "Accuracies BindsNET proportion", arguments_list, [i for i in range(len(accuracies_b_proportion[0]))], accuracies_b_proportion, acc_averages_b_proportion, acc_stds_b_proportion, seeds)
+    write_to_csv(directory, "Accuracies BindsNET_QA all", arguments_list, [i for i in range(len(accuracies_qa_all[0]))], accuracies_qa_all, acc_averages_qa_all, acc_stds_qa_all, seeds)
+    write_to_csv(directory, "Accuracies BindsNET_QA proportion", arguments_list, [i for i in range(len(accuracies_qa_proportion[0]))], accuracies_qa_proportion, acc_averages_qa_proportion, acc_stds_qa_proportion, seeds)
+    write_to_csv(directory, "Wall clock time taken", arguments_list, ["BindsNet (in sec)", "BindsNET_QA (in sec)"], wallclocktime, np.median(wallclocktime, axis=0), None, seeds)
+    write_to_csv(directory, "Qb_solv_energies", arguments_list, [i for i in range(int(time / dt))], qb_solv_energies_for_runs_layout, qb_solv_averages, qb_solv_stds, seeds)
     write_to_csv(directory, "Differences all-accuracies", arguments_list, diff_column_names, None, acc_averages_diff_all, acc_stds_diff_all)
     write_to_csv(directory, "Differences proportion-accuracies", arguments_list, diff_column_names, None, acc_averages_diff_proportion, acc_stds_diff_proportion)
-    write_to_csv(directory, "Filled Percentage of QUBO", arguments_list, None, None, [mean_filled], [std_filled])
+    write_to_csv(directory, "Filled Percentage of QUBO", arguments_list, None, None, [mean_filled], [std_filled], seeds)
 
     acc_averages = {"b_all": acc_averages_b_all, "b_proportion": acc_averages_b_proportion, "qa_all": acc_averages_qa_all, "qa_proportion": acc_averages_qa_proportion}
     acc_stds = {"b_all": acc_stds_b_all, "b_proportion": acc_stds_b_proportion, "qa_all": acc_stds_qa_all, "qa_proportion": acc_stds_qa_proportion}
