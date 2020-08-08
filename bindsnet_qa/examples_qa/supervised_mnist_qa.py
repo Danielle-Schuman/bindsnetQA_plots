@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 from bindsnet.datasets import MNIST
 from bindsnet.encoding import PoissonEncoder
-from bindsnet_qa.models import DiehlAndCook2015
+from bindsnet_qa.bindsnet_qa.models import DiehlAndCook2015
 from bindsnet.network.monitors import Monitor
 from bindsnet.utils import get_square_assignments, get_square_weights
 from bindsnet.evaluation import all_activity, proportion_weighting, assign_labels

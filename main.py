@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 
 from examples.mnist import supervised_mnist
-from examples_qa import supervised_mnist_qa
+from bindsnet_qa.examples_qa import supervised_mnist_qa
 from bindsnet_bad_ones.examples_bad_ones import supervised_mnist_bad_ones
 from bindsnet_bad_zeros.examples_bad_zeros import supervised_mnist_bad_zeros
 
