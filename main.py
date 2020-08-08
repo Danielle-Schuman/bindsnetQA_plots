@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 
 from examples.mnist import supervised_mnist
-from examples_qa.mnist import supervised_mnist as supervised_mnist_qa
+from examples_qa import supervised_mnist_qa
 
 
 def write_to_csv(directory: str, heading: str, arguments: list, column_names: Optional[list] = None, content: Optional[List[list]] = None, averages: Optional[list] = None, std: Optional[list] = None, seeds: Optional[list] = None):

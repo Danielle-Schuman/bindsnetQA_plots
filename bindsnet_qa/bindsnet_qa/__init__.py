@@ -1,9 +1,8 @@
 from pathlib import Path
 
-from . import (
+from bindsnet import (
     utils,
     network,
-    models,
     analysis,
     preprocessing,
     datasets,
@@ -13,6 +12,11 @@ from . import (
     evaluation,
     environment,
     conversion,
+)
+
+from . import (
+    network,
+    models
 )
 
 ROOT_DIR = Path(__file__).parents[0].parents[0]

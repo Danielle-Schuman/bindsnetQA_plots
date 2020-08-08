@@ -1,2 +1,2 @@
-from .network import Network, load
-from . import nodes, topology, monitors
+from .network_qa import Network, load
+from bindsnet.network import nodes, topology, monitors

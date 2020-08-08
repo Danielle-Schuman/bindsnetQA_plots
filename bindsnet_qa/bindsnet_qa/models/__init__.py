@@ -1,4 +1,4 @@
-from .models import (
+from .models_qa import (
     TwoLayerNetwork,
     DiehlAndCook2015,
     DiehlAndCook2015v2,
