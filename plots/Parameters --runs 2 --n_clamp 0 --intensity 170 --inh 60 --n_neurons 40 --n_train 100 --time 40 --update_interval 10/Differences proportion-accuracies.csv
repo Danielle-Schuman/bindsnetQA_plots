@@ -1,0 +1,15 @@
+Differences proportion-accuracies
+Parameters:,runs,n_neurons,n_train,n_test,n_clamp,exc,inh,time,dt,intensity,update_interval,train,plot,num_repeats,gpu
+,2,40,100,10000,0,22.5,60.0,40,1.0,170.0,10,True,False,1,False
+
+
+Column names:
+0,1,2,3,4,5,6,7,8,9,Average
+
+Averages:
+0.0,-5.0,10.0,-10.0,15.0,-5.0,-5.0,-5.0,5.0,5.0,0.5
+Standard deviations:
+0.0,5.0,0.0,0.0,5.0,-5.0,-5.0,5.0,-5.0,15.0,1.5
+
+
+

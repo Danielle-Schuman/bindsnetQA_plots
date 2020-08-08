@@ -1,0 +1,20 @@
+Accuracies BindsNET_bad_one all
+Parameters:,runs,n_neurons,n_train,n_test,n_clamp,exc,inh,time,dt,intensity,update_interval,train,plot,num_repeats,gpu
+,2,40,100,10000,0,22.5,60.0,40,1.0,170.0,10,True,False,1,False
+
+Seeds:,1596907649.275253,1596907718.7562969
+
+
+Column names:
+0,1,2,3,4,5,6,7,8,9
+
+10.0,10.0,0.0,10.0,10.0,10.0,20.0,0.0,0.0,10.0
+10.0,20.0,10.0,10.0,10.0,10.0,20.0,0.0,10.0,20.0
+
+Averages:
+10.0,15.0,5.0,10.0,10.0,10.0,20.0,0.0,5.0,15.0
+Standard deviations:
+0.0,5.0,5.0,0.0,0.0,0.0,0.0,0.0,5.0,5.0
+
+
+

@@ -1,0 +1,14 @@
+Filled Percentage of QUBO
+Parameters:,runs,n_neurons,n_train,n_test,n_clamp,exc,inh,time,dt,intensity,update_interval,train,plot,num_repeats,gpu
+,2,40,100,10000,0,22.5,60.0,40,1.0,170.0,10,True,False,1,False
+
+Seeds:,1596907649.275253,1596907718.7562969
+
+
+Averages:
+0.16788678252240055
+Standard deviations:
+0.07461698020147028
+
+
+

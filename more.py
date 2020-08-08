@@ -83,7 +83,7 @@ def plot_average_differences(
     x = np.array([0.0] + [(i * update_interval) + update_interval for i in range(list_length)])
     y = np.array([0.0] + [d for d in diff_avgs])
     std = np.array([0.0] + [s for s in stds])
-    c = '#9467bd'
+    c = 'tab:purple'
     ax.plot(x, y, marker='.', color=c)
     ax.fill_between(x, y - std, y + std, color=c, alpha=0.2)
 
@@ -94,7 +94,10 @@ def plot_average_differences(
     ax.set_xlabel("No. of examples")
     ax.set_ylabel("Average of (qa_all - b_all) in %")
     # to have readable number on x-axis, there can be at most 20 ticks; ticks should be multiples of update_interval
-    xticks = int(list_length / 20) * update_interval
+    if list_length > 20:
+        xticks = int(list_length / 20) * update_interval
+    else:
+        xticks = update_interval
     ax.set_xticks(range(0, (end + update_interval), xticks))
     ax.set_yticks(range(-11, 12, 1))
     ax.axhline(0, color='k')
@@ -129,15 +132,19 @@ def plot_new_training_accuracies(this_dir: str, length: Optional[int] = None):
     name_suffix = ""
     if length is not None:
         list_length = int(length / update_interval)
-        acc_avgs_b_all = acc_avgs_b_all[:list_length]
-        acc_avgs_b_proportion = acc_avgs_b_proportion[:list_length]
-        acc_avgs_qa_all = acc_avgs_qa_all[:list_length]
-        acc_avgs_qa_proportion = acc_avgs_qa_proportion[:list_length]
-        acc_stds_b_all = acc_stds_b_all[:list_length]
-        acc_stds_b_proportion = acc_stds_b_proportion[:list_length]
-        acc_stds_qa_all = acc_stds_qa_all[:list_length]
-        acc_stds_qa_proportion = acc_stds_qa_proportion[:list_length]
-        name_suffix = "_" + str(length)
+        # does not matter which list we take -> should all have the same length
+        if list_length > len(acc_avgs_b_all):
+            acc_avgs_b_all = acc_avgs_b_all[:list_length]
+            acc_avgs_b_proportion = acc_avgs_b_proportion[:list_length]
+            acc_avgs_qa_all = acc_avgs_qa_all[:list_length]
+            acc_avgs_qa_proportion = acc_avgs_qa_proportion[:list_length]
+            acc_stds_b_all = acc_stds_b_all[:list_length]
+            acc_stds_b_proportion = acc_stds_b_proportion[:list_length]
+            acc_stds_qa_all = acc_stds_qa_all[:list_length]
+            acc_stds_qa_proportion = acc_stds_qa_proportion[:list_length]
+            name_suffix = "_" + str(length)
+        else:
+            return
 
 
     acc_avgs_dict = {"b_all": acc_avgs_b_all, "b_proportion": acc_avgs_b_proportion, "qa_all": acc_avgs_qa_all, "qa_proportion": acc_avgs_qa_proportion}
@@ -302,7 +309,7 @@ def average_differences(this_dir:str, subdirs: list, over: int, in_name: str, no
 
     write_differences_to_csv(this_dir, heading_proportion, averages_proportion, stds_proportion, averages_proportion_stds, stds_proportion_stds, column_names)
     write_differences_to_csv(this_dir, heading_all, averages_all, stds_all, averages_all_stds, stds_all_stds, column_names)
-    if over is None and in_name is None and not_in_name == "--n_neurons 10,--num_repeats":
+    if over is None and in_name is None and not_in_name == "--num_repeats":
         plot_average_differences(averages_all[:-1], averages_all_stds[:-1], update_interval, this_dir, heading_all)
 
 
@@ -369,7 +376,7 @@ rootdir = "/Users/Daantje/Sourcecodes/bindsnet_qa_plots/plots"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--in_name", type=str)
-parser.add_argument("--not_in_name", type=str, default="--n_neurons 10,--num_repeats")
+parser.add_argument("--not_in_name", type=str, default="--num_repeats")
 parser.add_argument("--over", type=int)
 
 args = parser.parse_args()
@@ -400,7 +407,7 @@ for this_dir, subdirs, files in os.walk(rootdir):
                     subdirs_to_use.append(name)
         average_differences(this_dir, subdirs_to_use, over, in_name, not_in_name)
         average_wallclocktime_difference(this_dir, subdirs_to_use, in_name, not_in_name)
-        if in_name is None and not_in_name == "--n_neurons 10,--num_repeats" and over is None:
+        if in_name is None and not_in_name == "--num_repeats" and over is None:
             average_filled(this_dir, subdirs_to_use)
 
     elif files:  # if it's not the root directory and it's not empty
@@ -412,8 +419,8 @@ for this_dir, subdirs, files in os.walk(rootdir):
             plot_another_training_accuracy(this_dir, "proportion")
         if "Differences all-accuracies.csv" not in files:
             calculate_differences(this_dir)
-        if "--n_train 100" not in this_dir:
-            if "training_accuracy_100.png" not in files:
-                plot_new_training_accuracies(this_dir, 100)
+        if "--n_train 1000" not in this_dir:
+            if "training_accuracy_1000.png" not in files:
+                plot_new_training_accuracies(this_dir, 1000)
         # recalculate_average_wallclocktime(this_dir)
 print("Done.")
