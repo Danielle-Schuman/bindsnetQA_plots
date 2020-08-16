@@ -276,7 +276,7 @@ class Network(torch.nn.Module):
         # language=rst
         """
         Calculates the reward-value for the Quantum Annealer which is used to prevent a layer from "ignoring" inhibitory
-        inputs. To be calculated for inhibitory layer.
+        inputs. To be calculated for the inhibitory layer.
 
         :return: a float value to be used in Quantum Annealing to clamp a certain inhibitory node's qubit, whose node
             spiked in the last time window (and is now in refractory period), to 1
@@ -441,7 +441,7 @@ class Network(torch.nn.Module):
             # print("\n Energy of qbsolv-solution: %f" % solution.first.energy) -> return instead
             solution_sample = solution.first.sample
             energy = solution.first.energy
-        else:  # if qubo has length one
+        else:  # if qubo has length 1
             solution_sample = {}
             energy = 0
             for nr in qubo:
@@ -453,7 +453,7 @@ class Network(torch.nn.Module):
                     return None
 
         #start_after_qb = clock.time()
-        #evaluate how much of the qubo is filled (i.e. not zero)
+        # evaluate how much of the qubo is filled (i.e. not zero)
         filled = len(qubo) - [qubo.values()].count(0)
 
         # Layer Ae
@@ -470,7 +470,7 @@ class Network(torch.nn.Module):
         # (inputs are zero where in refrac-period)
         l_ae_v.v += torch.tensor([inputs_ae])
 
-        # Decrement refractory counters. (Input-layer does not have refrac_count)
+        # Decrement refractory counters.
         refrac_ae = l_ae_v.refrac_count  # as a tensor
         l_ae_v.refrac_count = (refrac_ae > 0).float() * (refrac_ae - l_ae_v.dt)
 
@@ -508,7 +508,7 @@ class Network(torch.nn.Module):
         # (inputs are zero where in refrac-period)
         l_ai_v.v += torch.tensor([inputs_ai])
 
-        # Decrement refractory counters. (Input-layer does not have refrac_count)
+        # Decrement refractory counters.
         refrac_ai = l_ai_v.refrac_count
         l_ai_v.refrac_count = (refrac_ai > 0).float() * (refrac_ai - l_ai_v.dt)
 
@@ -628,7 +628,8 @@ class Network(torch.nn.Module):
 
             # for l in self.layers: -> happens just for layer Ae, if at all
 
-            # Clamp neurons to spike. -> happens just for layer Ae
+            # Clamp neurons to spike.
+            # -> happens just for layer Ae, if at all
             clamp = clamps.get('Ae', None)
             if clamp is not None:
                 self.layers['Ae'].s[:, clamp] = 1
