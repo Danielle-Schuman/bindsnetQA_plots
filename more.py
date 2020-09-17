@@ -324,7 +324,7 @@ def average_differences(this_dir:str, subdirs: list, over: int, in_name: str, no
 
     # write_differences_to_csv(this_dir, heading_proportion, averages_proportion, stds_proportion, averages_proportion_stds, stds_proportion_stds, column_names)
     write_differences_to_csv(this_dir, heading_all, averages_all, stds_all, averages_all_stds, stds_all_stds, column_names)
-    if over is None and in_name is None and not_in_name == "--num_repeats":
+    if over is None and in_name is None and not_in_name == "num_repeats":
         plot_average_differences(averages_all[:-1], averages_all_stds[:-1], update_interval, this_dir, heading_all)
 
 
@@ -390,7 +390,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--in_name", type=str)
-    parser.add_argument("--not_in_name", type=str, default="--num_repeats")
+    parser.add_argument("--not_in_name", type=str, default="num_repeats")
     parser.add_argument("--over", type=int)
 
     args = parser.parse_args()
@@ -421,7 +421,7 @@ if __name__ == "__main__":
                         subdirs_to_use.append(name)
             average_differences(this_dir, subdirs_to_use, over, in_name, not_in_name)
             average_wallclocktime_difference(this_dir, subdirs_to_use, in_name, not_in_name)
-            if in_name is None and not_in_name == "--num_repeats" and over is None:
+            if in_name is None and not_in_name == "num_repeats" and over is None:
                 average_filled(this_dir, subdirs_to_use)
 
         elif files:  # if it's not the root directory and it's not empty
