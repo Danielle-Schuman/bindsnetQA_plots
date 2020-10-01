@@ -414,22 +414,6 @@ class Network(torch.nn.Module):
         #elapsed_before = end_before - start_before
         #print("\n Wall clock time before: %fs" % elapsed_before)
 
-        # Wegen Hin- und Rückconnection: Verfälscht "Rüberklappen" Inhalt,
-        # da connection von Ae nach Ai ≠ connection von Ai nach Ae?
-        # -> Nein, denn: Wenn connection Ae->Ai existiert, dann existiert nicht wirklich Ai->Ae und umgekehrt
-        # Für Situationen, wo dies doch der Fall wäre (Recurrent NN), wäre folgende Argumentation möglich,
-        # solange nicht geclamped wird (da bei clamping Ae-Neuron spikt,
-        # obwohl nicht in refrac-Period (in aktueller Implementierung), hält dann 1. nicht):
-        # 1. Wenn Input-spike auf connection Ae->Ai, dann Ae-neuron in refrac-Period
-        # -> bekommt keine Input-spikes Ai->Ae, sondern leer
-        # -> ok, weil insgesamt bei Klappen der Wert dann nur der von Ae->Ai ist
-        # 2. Wenn Input-spike auf connection Ai->Ae, dann Ai-neuron in refrac-Period
-        # -> bekommt keine Input-spikes Ae->Ai, sondern leer
-        # -> ok, weil insgesamt bei Klappen der Wert dann nur der von Ai->Ae ist
-        # 3. Beide gleichzeitig Input-Spike -> beide in refrac-Period -> auch kein Problem: Wert leer
-        # 4. Beide gleichzeitig kein Input-Spike -> Wert auf beiden Connections = w * 0 = 0
-        # => "Rüberklappen" kein Problem, da keine Verfälschung
-
         # call Quantum Annealer or simulator
         if len(qubo) > 1:  # qbsolv can apparently not deal with qubos of length 1
             #start_qb = clock.time()
