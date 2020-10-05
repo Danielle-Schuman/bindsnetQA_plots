@@ -1,3 +1,4 @@
+#used to summarize the results of several runs with the same parameter setting (calculating averages, making plots, etc.)
 import argparse
 import os
 import csv

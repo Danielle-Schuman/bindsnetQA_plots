@@ -17,7 +17,7 @@ from bindsnet.learning.reward import AbstractReward
 # the smallest "actual" changes to the values in our equation that occur each timestep,
 # which should be the changes to the weights (which are largely determined by the decay of the Inputs)
 # Problem: Smallest changes are at approximately the fourth digit after the point,
-# while Quantum Annealers at the moment have a precision of 3 digits -> No effect? -> Thomas said we don't need it
+# while Quantum Annealers at the moment have a precision of 3 digits -> No effect -> we don't need it
 # NUDGE = -0.0001
 
 
@@ -251,7 +251,7 @@ class Network(torch.nn.Module):
         # language=rst
         """
         Calculates the penalty-value for the Quantum Annealer which is used to prevent a layer from having
-        two spiking nodes. Currently not in use, since using it woul ‘artificially’ change the networks spiking behaviour
+        two spiking nodes. Currently not in use, since using it would ‘artificially’ change the networks spiking behaviour
 
         :return: a float value to be used in Quantum Annealing to keep a certain node from spiking if another node in
             its layer spikes
@@ -416,12 +416,12 @@ class Network(torch.nn.Module):
 
         # call Quantum Annealer or simulator
         if len(qubo) > 1:  # qbsolv can apparently not deal with qubos of length 1
-            #start_qb = clock.time()
+            # start_qb = clock.time()
             # originally num_repeats=40, seems to work well with num_repeats=1, too (-> now default)
             solution = qbs.QBSolv().sample_qubo(qubo, num_repeats=num_repeats, verbosity=-1)
-            #end_qb = clock.time()
-            #elapsed_qb = end_qb - start_qb
-            #print("\n Wall clock time qbsolv: %fs" % elapsed_qb)
+            # end_qb = clock.time()
+            # elapsed_qb = end_qb - start_qb
+            # print("\n Wall clock time qbsolv: %fs" % elapsed_qb)
             # print("\n Energy of qbsolv-solution: %f" % solution.first.energy) -> return instead
             solution_sample = solution.first.sample
             energy = solution.first.energy
@@ -598,11 +598,11 @@ class Network(torch.nn.Module):
             self.layers['X'].forward(x=inputs['X'][t])
 
             # forward-step with quantum annealing
-            #start_network = clock.time()
+            # start_network = clock.time()
             qb_solv_energy, filled_one = self.forward_qa(encoding_ae, encoding_ai, reward_ai,  num_repeats=num_repeats)
-            #end_forward = clock.time()
-            #elapsed_forward = end_forward - start_network
-            #print("\n Wall clock time forward_qa(): %fs" % elapsed_forward)
+            # end_forward = clock.time()
+            # elapsed_forward = end_forward - start_network
+            # print("\n Wall clock time forward_qa(): %fs" % elapsed_forward)
             # start_append = clock.time()
             qb_solv_energies.append(qb_solv_energy)
             filled.append(filled_one)
